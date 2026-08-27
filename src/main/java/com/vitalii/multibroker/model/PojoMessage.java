@@ -21,5 +21,5 @@ public record PojoMessage(
         @NotNull(message = "createdAt must not be null")
         @PastOrPresent(message = "createdAt must be in the past or present")
         LocalDateTime createdAt
-) {
+) implements QueueMessage {
 }

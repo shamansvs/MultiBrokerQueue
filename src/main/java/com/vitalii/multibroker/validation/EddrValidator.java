@@ -1,5 +1,6 @@
 package com.vitalii.multibroker.validation;
 
+import com.vitalii.multibroker.eddr.EddrChecksum;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 
@@ -13,7 +14,6 @@ import java.time.format.ResolverStyle;
 public class EddrValidator implements ConstraintValidator<ValidEddr, String> {
     private static final LocalDate MIN_DATE = LocalDate.of(1900, Month.JANUARY, 1);
     private static final int EDDR_LENGTH = 13;
-    private static final int[] COEFFICIENTS = {7, 3, 1};
     private static final ZoneId UKRAINE_ZONE = ZoneId.of("Europe/Kyiv");
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("uuuuMMdd")
             .withResolverStyle(ResolverStyle.STRICT);
@@ -25,7 +25,7 @@ public class EddrValidator implements ConstraintValidator<ValidEddr, String> {
         }
         eddr = eddr.replace("-", "");
 
-        return isValidLength(eddr) && isValidDigits(eddr) && isValidDatePart(eddr) && isValidCheckDigit(eddr);
+        return isValidLength(eddr) && isValidDigits(eddr) && isValidDatePart(eddr) && EddrChecksum.hasValidCheckDigit(eddr);
 
     }
 
@@ -53,15 +53,5 @@ public class EddrValidator implements ConstraintValidator<ValidEddr, String> {
         } catch (DateTimeParseException e) {
             return false;
         }
-    }
-
-    private boolean isValidCheckDigit(String eddr) {
-        int sum = 0;
-        for (int i = 0; i < eddr.length() - 1; i++) {
-            int digit = Character.getNumericValue(eddr.charAt(i));
-            sum += digit * COEFFICIENTS[i % COEFFICIENTS.length];
-        }
-        int lastDigit = Character.getNumericValue(eddr.charAt(eddr.length() - 1));
-        return sum % 10 == lastDigit;
     }
 }

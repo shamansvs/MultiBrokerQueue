@@ -15,6 +15,7 @@ build/
 *.class
 *.log
 out/
+*.csv
 
 ### Eclipse ###
 .apt_generated
