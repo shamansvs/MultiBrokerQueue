@@ -32,9 +32,11 @@ public final class ProducerRunner {
             producer.generateAndSend(messagesCount);
         } finally {
             sendPoisonPills();
-            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(
-                    System.nanoTime() - start);
-            LOGGER.info("Producer time: {} ms", elapsedMillis);
+            long durationNanos = System.nanoTime() - start;
+            long durationMillis = TimeUnit.NANOSECONDS.toMillis(durationNanos);
+            long messagesPerSecond = Math.round(messagesCount * 1_000_000_000.0 / Math.max(1, durationNanos));
+            LOGGER.info("Producer sent {} messages in {} ms ({} msg/s)",
+                    messagesCount, durationMillis, messagesPerSecond);
         }
     }
 

@@ -23,6 +23,7 @@ public final class ConsumerRunner implements AutoCloseable {
     private final int consumersCount;
     private final ExecutorService executor;
     private final List<Future<?>> futures = new ArrayList<>();
+    private final List<ConsumerWorker> consumers = new ArrayList<>();
 
     private long startNanos;
 
@@ -40,6 +41,7 @@ public final class ConsumerRunner implements AutoCloseable {
 
         for (int i = 0; i < consumersCount; i++) {
             ConsumerWorker consumer = new ConsumerWorker(broker, processor, queueName);
+            consumers.add(consumer);
             futures.add(executor.submit(consumer));
         }
     }
@@ -49,8 +51,15 @@ public final class ConsumerRunner implements AutoCloseable {
             for (Future<?> future : futures) {
                 future.get();
             }
-            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
-            LOGGER.info("Consumer time: {} ms", elapsedMillis);
+
+            long processedMessagesCount = consumers.stream()
+                    .mapToLong(ConsumerWorker::getProcessedMessagesCount)
+                    .sum();
+            long durationNanos = System.nanoTime() - startNanos;
+            long durationMillis = TimeUnit.NANOSECONDS.toMillis(durationNanos);
+            long messagesPerSecond = Math.round(processedMessagesCount * 1_000_000_000.0 / Math.max(1, durationNanos));
+            LOGGER.info("Consumers processed {} messages in {} ms ({} msg/s)",
+                    processedMessagesCount, durationMillis, messagesPerSecond);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

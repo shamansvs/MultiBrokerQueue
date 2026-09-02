@@ -10,6 +10,7 @@ public final class ConsumerWorker implements Runnable {
     private final MessageBroker broker;
     private final MessageProcessor processor;
     private final String queueName;
+    private long processedMessagesCount;
 
     public ConsumerWorker(
             MessageBroker broker,
@@ -33,9 +34,14 @@ public final class ConsumerWorker implements Runnable {
 
                 PojoMessage pojoMessage = (PojoMessage) message;
                 processor.process(pojoMessage);
+                processedMessagesCount++;
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    public long getProcessedMessagesCount() {
+        return processedMessagesCount;
     }
 }
