@@ -7,25 +7,18 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-public final class ConsumerRunner implements AutoCloseable {
-    private static final Logger LOGGER =
-            LoggerFactory.getLogger(ConsumerRunner.class);
+public final class ConsumerRunner {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ConsumerRunner.class);
 
     private final MessageBroker broker;
     private final MessageProcessor processor;
     private final String queueName;
     private final int consumersCount;
-    private final ExecutorService executor;
-    private final List<Future<?>> futures = new ArrayList<>();
     private final List<ConsumerWorker> consumers = new ArrayList<>();
 
-    private long startNanos;
+    private long consumerStartNanos;
 
     public ConsumerRunner(MessageBroker broker, MessageProcessor processor,
                           String queueName, int consumersCount) {
@@ -33,29 +26,28 @@ public final class ConsumerRunner implements AutoCloseable {
         this.processor = processor;
         this.queueName = queueName;
         this.consumersCount = consumersCount;
-        this.executor = Executors.newFixedThreadPool(consumersCount);
     }
 
     public void start() {
-        startNanos = System.nanoTime();
+        consumerStartNanos = System.nanoTime();
 
         for (int i = 0; i < consumersCount; i++) {
-            ConsumerWorker consumer = new ConsumerWorker(broker, processor, queueName);
+            ConsumerWorker consumer = new ConsumerWorker(processor);
             consumers.add(consumer);
-            futures.add(executor.submit(consumer));
+            broker.subscribe(queueName, consumer);
         }
     }
 
     public void awaitCompletion() {
         try {
-            for (Future<?> future : futures) {
-                future.get();
+            for (ConsumerWorker consumer : consumers) {
+                consumer.awaitCompletion();
             }
 
             long processedMessagesCount = consumers.stream()
                     .mapToLong(ConsumerWorker::getProcessedMessagesCount)
                     .sum();
-            long durationNanos = System.nanoTime() - startNanos;
+            long durationNanos = System.nanoTime() - consumerStartNanos;
             long durationMillis = TimeUnit.NANOSECONDS.toMillis(durationNanos);
             long messagesPerSecond = Math.round(processedMessagesCount * 1_000_000_000.0 / Math.max(1, durationNanos));
             LOGGER.info("Consumers processed {} messages in {} ms ({} msg/s)",
@@ -63,18 +55,8 @@ public final class ConsumerRunner implements AutoCloseable {
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+
             throw new IllegalStateException("Consumer processing was interrupted", e);
-
-        } catch (ExecutionException e) {
-            throw new IllegalStateException("Consumer processing failed", e);
-
-        } finally {
-            executor.shutdown();
         }
-    }
-
-    @Override
-    public void close() {
-        executor.shutdownNow();
     }
 }

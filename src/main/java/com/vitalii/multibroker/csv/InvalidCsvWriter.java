@@ -2,6 +2,8 @@ package com.vitalii.multibroker.csv;
 
 import com.vitalii.multibroker.model.PojoMessage;
 import jakarta.validation.ConstraintViolation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -12,9 +14,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class InvalidCsvWriter implements AutoCloseable {
     private static final String HEADER = "name,count,errors";
