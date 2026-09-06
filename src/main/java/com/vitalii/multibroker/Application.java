@@ -1,8 +1,7 @@
 package com.vitalii.multibroker;
 
 import com.vitalii.multibroker.broker.MessageBroker;
-import com.vitalii.multibroker.broker.rabbitmq.RabbitMqBroker;
-import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConnectionProvider;
+import com.vitalii.multibroker.broker.MessageBrokerFactory;
 import com.vitalii.multibroker.config.AppConfig;
 import com.vitalii.multibroker.consumer.ConsumerRunner;
 import com.vitalii.multibroker.csv.InvalidCsvWriter;
@@ -11,8 +10,6 @@ import com.vitalii.multibroker.generator.MessageGenerator;
 import com.vitalii.multibroker.processing.MessageProcessor;
 import com.vitalii.multibroker.producer.MessageProducer;
 import com.vitalii.multibroker.producer.ProducerRunner;
-import com.vitalii.multibroker.serialization.JsonQueueMessageSerializer;
-import com.vitalii.multibroker.serialization.QueueMessageSerializer;
 import com.vitalii.multibroker.validation.MessageValidator;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
@@ -27,10 +24,8 @@ public class Application {
 
     public static void main(String[] args) {
         AppConfig config = AppConfig.load();
-        RabbitMqConnectionProvider connectionProvider = new RabbitMqConnectionProvider(config.rabbitMqConfig());
-        QueueMessageSerializer serializer = new JsonQueueMessageSerializer();
 
-        try (MessageBroker broker = new RabbitMqBroker(connectionProvider, serializer);
+        try (MessageBroker broker = MessageBrokerFactory.create(config);
              ValidatorFactory factory = Validation.byDefaultProvider()
                      .configure()
                      .messageInterpolator(new ParameterMessageInterpolator())
