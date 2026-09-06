@@ -1,7 +1,8 @@
 package com.vitalii.multibroker;
 
 import com.vitalii.multibroker.broker.MessageBroker;
-import com.vitalii.multibroker.broker.inmemory.InMemoryMessageBroker;
+import com.vitalii.multibroker.broker.rabbitmq.RabbitMqBroker;
+import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConnectionProvider;
 import com.vitalii.multibroker.config.AppConfig;
 import com.vitalii.multibroker.consumer.ConsumerRunner;
 import com.vitalii.multibroker.csv.InvalidCsvWriter;
@@ -10,6 +11,8 @@ import com.vitalii.multibroker.generator.MessageGenerator;
 import com.vitalii.multibroker.processing.MessageProcessor;
 import com.vitalii.multibroker.producer.MessageProducer;
 import com.vitalii.multibroker.producer.ProducerRunner;
+import com.vitalii.multibroker.serialization.JsonQueueMessageSerializer;
+import com.vitalii.multibroker.serialization.QueueMessageSerializer;
 import com.vitalii.multibroker.validation.MessageValidator;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
@@ -20,18 +23,18 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.TimeUnit;
 
 public class Application {
-    private static final Logger LOGGER =
-            LoggerFactory.getLogger(Application.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(Application.class);
 
     public static void main(String[] args) {
         AppConfig config = AppConfig.load();
-        MessageBroker broker = new InMemoryMessageBroker();
-        long totalStart = System.nanoTime();
+        RabbitMqConnectionProvider connectionProvider = new RabbitMqConnectionProvider(config.rabbitMqConfig());
+        QueueMessageSerializer serializer = new JsonQueueMessageSerializer();
 
-        try (ValidatorFactory factory = Validation.byDefaultProvider()
-                .configure()
-                .messageInterpolator(new ParameterMessageInterpolator())
-                .buildValidatorFactory();
+        try (MessageBroker broker = new RabbitMqBroker(connectionProvider, serializer);
+             ValidatorFactory factory = Validation.byDefaultProvider()
+                     .configure()
+                     .messageInterpolator(new ParameterMessageInterpolator())
+                     .buildValidatorFactory();
              ValidCsvWriter validWriter = new ValidCsvWriter(config.validCsvPath());
              InvalidCsvWriter invalidWriter = new InvalidCsvWriter(config.invalidCsvPath())) {
 
@@ -42,12 +45,14 @@ public class Application {
             ProducerRunner producerRunner = new ProducerRunner(producer, broker, config.queueName(),
                     config.messagesCount(), config.consumersCount());
 
-            try (ConsumerRunner consumerRunner = new ConsumerRunner(broker, processor,
-                    config.queueName(), config.consumersCount())) {
-                consumerRunner.start();
-                producerRunner.run();
-                consumerRunner.awaitCompletion();
-            }
+            ConsumerRunner consumerRunner = new ConsumerRunner(broker, processor,
+                    config.queueName(), config.consumersCount());
+
+            long totalStart = System.nanoTime();
+
+            consumerRunner.start();
+            producerRunner.run();
+            consumerRunner.awaitCompletion();
 
             long totalMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - totalStart);
             LOGGER.info("Total time: {} ms", totalMillis);
