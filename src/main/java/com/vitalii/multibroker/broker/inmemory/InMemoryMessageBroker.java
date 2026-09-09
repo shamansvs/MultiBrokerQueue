@@ -18,25 +18,23 @@ public final class InMemoryMessageBroker implements MessageBroker {
     }
 
     @Override
-    public void subscribe(
-            String queueName,
-            QueueMessageHandler handler
-    ) {
+    public void subscribe(String queueName, QueueMessageHandler handler) {
         executor.submit(() -> {
-            try {
-                while (!Thread.currentThread().isInterrupted()) {
-                    QueueMessage message = getQueue(queueName).take();
+                    try {
+                        while (!Thread.currentThread().isInterrupted()) {
+                            QueueMessage message = getQueue(queueName).take();
 
-                    boolean shouldContinue = handler.handle(message);
+                            boolean shouldContinue = handler.handle(message);
 
-                    if (!shouldContinue) {
-                        return;
+                            if (!shouldContinue) {
+                                return;
+                            }
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
                     }
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
+        );
     }
 
     @Override
