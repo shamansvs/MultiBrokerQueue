@@ -2,6 +2,7 @@ package com.vitalii.multibroker.eddr;
 
 import org.junit.jupiter.api.Test;
 
+import static com.vitalii.multibroker.eddr.EddrChecksum.calculateControlDigit;
 import static org.junit.jupiter.api.Assertions.*;
 
 class EddrChecksumTest {
@@ -9,7 +10,7 @@ class EddrChecksumTest {
     void shouldCalculateControlDigit() {
         String firstTwelveDigits = "200001010001";
 
-        int controlDigit = EddrChecksum.calculateControlDigit(firstTwelveDigits);
+        int controlDigit = calculateControlDigit(firstTwelveDigits);
 
         assertEquals(9, controlDigit);
     }
@@ -40,4 +41,27 @@ class EddrChecksumTest {
                 )
         );
     }
+
+    @Test
+    void shouldThrowExceptionForInvalidInput() {
+        assertAll(
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> calculateControlDigit(null)
+                ),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> calculateControlDigit("123456")
+                ),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> calculateControlDigit("1234567890123")
+                ),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> calculateControlDigit("12345678901A")
+                )
+        );
+    }
+
 }
