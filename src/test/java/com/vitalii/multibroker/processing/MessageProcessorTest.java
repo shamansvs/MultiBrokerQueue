@@ -4,7 +4,9 @@ import com.vitalii.multibroker.csv.InvalidCsvWriter;
 import com.vitalii.multibroker.csv.ValidCsvWriter;
 import com.vitalii.multibroker.model.PojoMessage;
 import com.vitalii.multibroker.validation.MessageValidator;
-import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.ValidatorFactory;
+import org.hibernate.validator.messageinterpolation.ParameterMessageInterpolator;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -39,25 +41,35 @@ class MessageProcessorTest {
 
     @Test
     void shouldWriteInvalidMessageToInvalidCsv() {
-        MessageValidator validator = mock(MessageValidator.class);
         ValidCsvWriter validWriter = mock(ValidCsvWriter.class);
         InvalidCsvWriter invalidWriter = mock(InvalidCsvWriter.class);
 
-        MessageProcessor processor =
-                new MessageProcessor(validator, validWriter, invalidWriter);
+        try (ValidatorFactory factory = Validation.byDefaultProvider()
+                .configure()
+                .messageInterpolator(new ParameterMessageInterpolator())
+                .buildValidatorFactory()) {
 
-        @SuppressWarnings("unchecked")
-        ConstraintViolation<PojoMessage> violation =
-                mock(ConstraintViolation.class);
+            MessageValidator validator =
+                    new MessageValidator(factory.getValidator());
 
-        Set<ConstraintViolation<PojoMessage>> violations = Set.of(violation);
+            MessageProcessor processor =
+                    new MessageProcessor(validator, validWriter, invalidWriter);
 
-        when(validator.validate(message)).thenReturn(violations);
+            PojoMessage invalidMessage = new PojoMessage(
+                    "bbbbbb",
+                    "",
+                    9,
+                    LocalDateTime.now().plusDays(1)
+            );
 
-        processor.process(message);
+            processor.process(invalidMessage);
 
-        verify(invalidWriter).write(message, violations);
-        verifyNoInteractions(validWriter);
+            verify(invalidWriter).write(
+                    eq(invalidMessage),
+                    anySet()
+            );
+            verifyNoInteractions(validWriter);
+        }
     }
 
 }
