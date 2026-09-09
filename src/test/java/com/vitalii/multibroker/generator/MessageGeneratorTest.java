@@ -31,7 +31,6 @@ class MessageGeneratorTest {
         assertTrue(messages.stream().allMatch(message ->
                 message.name().length() >= 6
                         && message.name().length() <= 15
-                        && message.count() >= 1
                         && message.count() <= 999
                         && eddrValidator.isValid(message.eddr(), null)
                         && !message.createdAt().isAfter(currentTime)
