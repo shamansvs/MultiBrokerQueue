@@ -1,5 +1,6 @@
 package com.vitalii.multibroker.broker;
 
+import com.vitalii.multibroker.broker.activemq.ActiveMqConfig;
 import com.vitalii.multibroker.broker.inmemory.InMemoryMessageBroker;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConfig;
 import com.vitalii.multibroker.config.AppConfig;
@@ -44,7 +45,12 @@ class MessageBrokerFactoryTest {
                         "localhost",
                         5672,
                         "guest",
-                        "guest"
+                        "guest"),
+                new ActiveMqConfig(
+                        "localhost",
+                        61616,
+                        "artemis",
+                        "artemis"
                 )
         );
     }

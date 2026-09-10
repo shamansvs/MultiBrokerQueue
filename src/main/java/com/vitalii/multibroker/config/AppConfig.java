@@ -1,5 +1,6 @@
 package com.vitalii.multibroker.config;
 
+import com.vitalii.multibroker.broker.activemq.ActiveMqConfig;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConfig;
 
 import java.io.IOException;
@@ -15,7 +16,8 @@ public record AppConfig(
         long messagesCount,
         Path validCsvPath,
         Path invalidCsvPath,
-        RabbitMqConfig rabbitMqConfig
+        RabbitMqConfig rabbitMqConfig,
+        ActiveMqConfig activeMqConfig
 ) {
     public static AppConfig load() {
         Properties properties = new Properties();
@@ -42,7 +44,12 @@ public record AppConfig(
                             properties.getProperty("rabbitmq.host"),
                             Integer.parseInt(properties.getProperty("rabbitmq.port")),
                             properties.getProperty("rabbitmq.username"),
-                            properties.getProperty("rabbitmq.password")
+                            properties.getProperty("rabbitmq.passwordd")),
+                    new ActiveMqConfig(
+                            properties.getProperty("activemq.host"),
+                            Integer.parseInt(properties.getProperty("activemq.port")),
+                            properties.getProperty("activemq.username"),
+                            properties.getProperty("activemq.passwordd")
                     )
             );
         } catch (IOException e) {
