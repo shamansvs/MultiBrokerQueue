@@ -13,3 +13,8 @@ services:
     environment:
       ARTEMIS_USER: artemis
       ARTEMIS_PASSWORD: artemis
+
+  kafka:
+    image: apache/kafka:4.3.1
+    ports:
+      - "127.0.0.1:9092:9092"
