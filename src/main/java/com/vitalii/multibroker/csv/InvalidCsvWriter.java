@@ -2,6 +2,8 @@ package com.vitalii.multibroker.csv;
 
 import com.vitalii.multibroker.model.PojoMessage;
 import jakarta.validation.ConstraintViolation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -16,7 +18,10 @@ import java.util.stream.Collectors;
 public final class InvalidCsvWriter implements AutoCloseable {
     private static final String HEADER = "name,count,errors";
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(InvalidCsvWriter.class);
     private final BufferedWriter writer;
+    private long writtenMessagesCount;
+    private long writingDurationNanos;
 
     public InvalidCsvWriter(Path filePath) {
         try {
@@ -35,12 +40,17 @@ public final class InvalidCsvWriter implements AutoCloseable {
     }
 
     public synchronized void write(PojoMessage message, Set<ConstraintViolation<PojoMessage>> violations) {
+        String csvErrors = errorsToCsvJson(violations);
+        long writeStart = System.nanoTime();
+
         try {
-            String csvErrors = errorsToCsvJson(violations);
             writer.write(message.name() + "," + message.count() + "," + csvErrors);
             writer.newLine();
+            writtenMessagesCount++;
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to write invalid message", e);
+        } finally {
+            writingDurationNanos += System.nanoTime() - writeStart;
         }
     }
 
@@ -60,6 +70,10 @@ public final class InvalidCsvWriter implements AutoCloseable {
     public synchronized void close() {
         try {
             writer.close();
+            long messagesPerSecond = Math.round(writtenMessagesCount * 1_000_000_000.0
+                    / Math.max(1, writingDurationNanos));
+            LOGGER.info("Invalid CSV writer wrote {} messages ({} msg/s)",
+                    writtenMessagesCount, messagesPerSecond);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to close invalid CSV file", e);
         }
