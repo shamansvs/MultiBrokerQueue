@@ -1,5 +1,7 @@
 package com.vitalii.multibroker.broker;
 
+import com.vitalii.multibroker.broker.activemq.ActiveMqBroker;
+import com.vitalii.multibroker.broker.activemq.ActiveMqConnectionProvider;
 import com.vitalii.multibroker.broker.inmemory.InMemoryMessageBroker;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqBroker;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConnectionProvider;
@@ -22,13 +24,17 @@ public final class MessageBrokerFactory {
             case "inmemory" -> new InMemoryMessageBroker();
 
             case "rabbitmq" -> {
-                RabbitMqConnectionProvider connectionProvider =
-                        new RabbitMqConnectionProvider(config.rabbitMqConfig());
-
-                QueueMessageSerializer serializer =
-                        new JsonQueueMessageSerializer();
+                RabbitMqConnectionProvider connectionProvider = new RabbitMqConnectionProvider(config.rabbitMqConfig());
+                QueueMessageSerializer serializer = new JsonQueueMessageSerializer();
 
                 yield new RabbitMqBroker(connectionProvider, serializer);
+            }
+
+            case "activemq" -> {
+                ActiveMqConnectionProvider connectionProvider = new ActiveMqConnectionProvider(config.activeMqConfig());
+                QueueMessageSerializer serializer = new JsonQueueMessageSerializer();
+
+                yield new ActiveMqBroker(connectionProvider, serializer);
             }
 
             default -> throw new IllegalArgumentException(
