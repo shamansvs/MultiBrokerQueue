@@ -2,6 +2,7 @@ package com.vitalii.multibroker.broker;
 
 import com.vitalii.multibroker.broker.activemq.ActiveMqConfig;
 import com.vitalii.multibroker.broker.inmemory.InMemoryMessageBroker;
+import com.vitalii.multibroker.broker.kafka.KafkaConfig;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConfig;
 import com.vitalii.multibroker.config.AppConfig;
 import org.junit.jupiter.api.Test;
@@ -50,7 +51,10 @@ class MessageBrokerFactoryTest {
                         "localhost",
                         61616,
                         "artemis",
-                        "artemis"
+                        "artemis"),
+                new KafkaConfig(
+                        "localhost:9092",
+                        "test-consumers"
                 )
         );
     }

@@ -1,6 +1,7 @@
 package com.vitalii.multibroker.config;
 
 import com.vitalii.multibroker.broker.activemq.ActiveMqConfig;
+import com.vitalii.multibroker.broker.kafka.KafkaConfig;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConfig;
 
 import java.io.IOException;
@@ -17,7 +18,8 @@ public record AppConfig(
         Path validCsvPath,
         Path invalidCsvPath,
         RabbitMqConfig rabbitMqConfig,
-        ActiveMqConfig activeMqConfig
+        ActiveMqConfig activeMqConfig,
+        KafkaConfig kafkaConfig
 ) {
     public static AppConfig load() {
         Properties properties = new Properties();
@@ -49,8 +51,10 @@ public record AppConfig(
                             properties.getProperty("activemq.host"),
                             Integer.parseInt(properties.getProperty("activemq.port")),
                             properties.getProperty("activemq.username"),
-                            properties.getProperty("activemq.passwordd")
-                    )
+                            properties.getProperty("activemq.passwordd")),
+                    new KafkaConfig(
+                            properties.getProperty("kafka.bootstrap.servers"),
+                            properties.getProperty("kafka.group.id"))
             );
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load application.properties", e);
