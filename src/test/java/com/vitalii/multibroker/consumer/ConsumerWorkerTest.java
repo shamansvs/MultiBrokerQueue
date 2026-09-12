@@ -47,4 +47,25 @@ class ConsumerWorkerTest {
                 worker::awaitCompletion
         );
     }
+
+    @Test
+    void shouldReportProcessingFailureWithoutWaitingForPoisonPill() {
+        MessageProcessor processor = mock(MessageProcessor.class);
+        ConsumerWorker worker = new ConsumerWorker(processor);
+
+        RuntimeException cause = new IllegalStateException("CSV writing failed");
+
+        worker.onError(cause);
+
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+            IllegalStateException exception = assertThrows(
+                    IllegalStateException.class,
+                    worker::awaitCompletion
+            );
+
+            assertSame(cause, exception.getCause());
+        });
+
+        verifyNoInteractions(processor);
+    }
 }
