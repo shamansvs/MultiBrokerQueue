@@ -3,6 +3,7 @@ package com.vitalii.multibroker.broker;
 import com.vitalii.multibroker.broker.activemq.ActiveMqBroker;
 import com.vitalii.multibroker.broker.activemq.ActiveMqConnectionProvider;
 import com.vitalii.multibroker.broker.inmemory.InMemoryMessageBroker;
+import com.vitalii.multibroker.broker.kafka.KafkaBroker;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqBroker;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConnectionProvider;
 import com.vitalii.multibroker.config.AppConfig;
@@ -35,6 +36,14 @@ public final class MessageBrokerFactory {
                 QueueMessageSerializer serializer = new JsonQueueMessageSerializer();
 
                 yield new ActiveMqBroker(connectionProvider, serializer);
+            }
+
+            case "kafka" -> {
+                if (config.consumersCount() != 1 || config.producersCount() != 1) {
+                    throw new IllegalArgumentException("Kafka currently requires one producer and one consumer");
+                }
+
+                yield new KafkaBroker(config.kafkaConfig(), new JsonQueueMessageSerializer());
             }
 
             default -> throw new IllegalArgumentException(
