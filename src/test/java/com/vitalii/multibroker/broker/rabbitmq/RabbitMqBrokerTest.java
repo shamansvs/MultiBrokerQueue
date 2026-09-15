@@ -3,8 +3,8 @@ package com.vitalii.multibroker.broker.rabbitmq;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.vitalii.multibroker.broker.QueueMessageHandler;
-import com.vitalii.multibroker.model.PojoMessage;
 import com.vitalii.multibroker.model.PoisonPill;
+import com.vitalii.multibroker.model.PojoMessage;
 import com.vitalii.multibroker.model.QueueMessage;
 import com.vitalii.multibroker.serialization.JsonQueueMessageSerializer;
 import org.junit.jupiter.api.AfterEach;
@@ -12,24 +12,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 @EnabledIfEnvironmentVariable(named = "RUN_RABBITMQ_TESTS", matches = "true")
 class RabbitMqBrokerTest {
@@ -146,5 +140,63 @@ class RabbitMqBrokerTest {
                 completionLatch.countDown();
             }
         };
+    }
+
+    @Test
+    void shouldWaitForActiveHandlerBeforeClosing() {
+        assertTimeoutPreemptively(Duration.ofSeconds(15), () -> {
+            CountDownLatch handlerStarted = new CountDownLatch(1);
+            CountDownLatch allowHandlerToFinish = new CountDownLatch(1);
+            CountDownLatch handlerFinished = new CountDownLatch(1);
+            CountDownLatch closeStarted = new CountDownLatch(1);
+
+            try (RabbitMqBroker broker = new RabbitMqBroker(connectionProvider, new JsonQueueMessageSerializer());
+                 ExecutorService closingExecutor = Executors.newSingleThreadExecutor()) {
+
+                try {
+                    broker.subscribe(queueName, message -> {
+                        handlerStarted.countDown();
+
+                        try {
+                            allowHandlerToFinish.await();
+                            return true;
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException("Handler was interrupted", e);
+                        } finally {
+                            handlerFinished.countDown();
+                        }
+                    });
+
+                    PojoMessage message = new PojoMessage(
+                            "anastasia",
+                            "2000010100019",
+                            10,
+                            LocalDateTime.of(2026, Month.JANUARY, 1, 12, 0)
+                    );
+
+                    broker.send(queueName, message);
+
+                    assertTrue(handlerStarted.await(5, TimeUnit.SECONDS), "Handler did not start");
+
+                    Future<?> closingTask = closingExecutor.submit(() -> {
+                        closeStarted.countDown();
+                        broker.close();
+                    });
+
+                    assertTrue(closeStarted.await(2, TimeUnit.SECONDS), "Closing task did not start");
+                    assertThrows(TimeoutException.class, () -> closingTask.get(200, TimeUnit.MILLISECONDS),
+                            "Broker must not close while the handler is active");
+
+                    allowHandlerToFinish.countDown();
+                    closingTask.get(5, TimeUnit.SECONDS);
+
+                    assertEquals(0L, handlerFinished.getCount(),
+                            "Handler must finish before broker.close() returns");
+                } finally {
+                    allowHandlerToFinish.countDown();
+                }
+            }
+        });
     }
 }
