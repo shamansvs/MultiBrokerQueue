@@ -1,17 +1,18 @@
 package com.vitalii.multibroker.broker.rabbitmq;
 
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.DefaultConsumer;
-import com.rabbitmq.client.Envelope;
+import com.rabbitmq.client.*;
 import com.vitalii.multibroker.broker.MessageBroker;
 import com.vitalii.multibroker.broker.QueueMessageHandler;
+import com.vitalii.multibroker.model.PoisonPill;
 import com.vitalii.multibroker.model.QueueMessage;
 import com.vitalii.multibroker.serialization.QueueMessageSerializer;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class RabbitMqBroker implements MessageBroker {
     private final Connection connection;
@@ -19,11 +20,21 @@ public final class RabbitMqBroker implements MessageBroker {
     private final ThreadLocal<Channel> producerChannels;
     private final Set<String> declaredQueues = ConcurrentHashMap.newKeySet();
     private final Object queueLock = new Object();
+    private final ExecutorService consumerExecutor;
+    private volatile boolean closing;
 
-    public RabbitMqBroker(RabbitMqConnectionProvider connectionProvider,
-                          QueueMessageSerializer serializer) {
-        this.connection = connectionProvider.createConnection();
-        this.serializer = serializer;
+    public RabbitMqBroker(RabbitMqConnectionProvider connectionProvider, QueueMessageSerializer serializer) {
+        Objects.requireNonNull(connectionProvider);
+        this.serializer = Objects.requireNonNull(serializer);
+        this.consumerExecutor = Executors.newCachedThreadPool();
+
+        try {
+            this.connection = connectionProvider.createConnection(consumerExecutor);
+        } catch (RuntimeException e) {
+            consumerExecutor.close();
+            throw e;
+        }
+
         this.producerChannels = ThreadLocal.withInitial(this::createChannel);
     }
 
@@ -43,38 +54,95 @@ public final class RabbitMqBroker implements MessageBroker {
 
     @Override
     public void subscribe(String queueName, QueueMessageHandler handler) {
-        try {
-            Channel channel = createChannel();
-            ensureQueue(channel, queueName);
+        Objects.requireNonNull(handler);
 
-            channel.basicConsume(queueName, true, new DefaultConsumer(channel) {
+        if (closing) {
+            throw new IllegalStateException("RabbitMQ broker is closing");
+        }
+        Channel channel = createChannel();
+
+        try {
+            ensureQueue(channel, queueName);
+            channel.basicQos(1);
+            channel.basicConsume(queueName, false, new DefaultConsumer(channel) {
+                private boolean stopped;
+
                 @Override
                 public void handleDelivery(
                         String consumerTag,
                         Envelope envelope,
-                        com.rabbitmq.client.AMQP.BasicProperties properties,
+                        AMQP.BasicProperties properties,
                         byte[] body
-                ) throws IOException {
-                    QueueMessage message = serializer.deserialize(body);
-                    boolean shouldContinue = handler.handle(message);
+                ) {
+                    if (stopped || closing) {
+                        return;
+                    }
 
-                    if (!shouldContinue) {
-                        channel.basicCancel(consumerTag);
+                    long deliveryTag = envelope.getDeliveryTag();
+                    try {
+                        QueueMessage message = serializer.deserialize(body);
+
+                        if (message == PoisonPill.STOP) {
+                            stopped = true;
+                            channel.basicCancel(consumerTag);
+                            channel.basicAck(deliveryTag, false);
+                            handler.handle(message);
+                            return;
+                        }
+
+                        boolean shouldContinue = handler.handle(message);
+
+                        if (!shouldContinue) {
+                            stopped = true;
+                            channel.basicCancel(consumerTag);
+                        }
+
+                        channel.basicAck(deliveryTag, false);
+                    } catch (IOException | RuntimeException e) {
+                        stopped = true;
+
+                        abortChannel(channel, e);
+                        handler.onError(e);
+                    }
+                }
+
+                @Override
+                public void handleShutdownSignal(String consumerTag, ShutdownSignalException signal) {
+                    if (!stopped && !closing) {
+                        stopped = true;
+                        handler.onError(signal);
+                    }
+                }
+
+                @Override
+                public void handleCancel(String consumerTag) {
+                    if (!stopped && !closing) {
+                        stopped = true;
+
+                        handler.onError(new IllegalStateException("RabbitMQ cancelled consumer: " + consumerTag));
                     }
                 }
             });
-        } catch (IOException e) {
-            throw new IllegalStateException(
-                    "Failed to subscribe to RabbitMQ queue: " + queueName, e);
-        }
+        } catch (IOException | RuntimeException e) {
+            abortChannel(channel, e);
 
+            throw new IllegalStateException("Failed to subscribe to RabbitMQ queue: " + queueName, e);
+        }
     }
 
     @Override
-    public void close() {
-        try {
-            connection.close();
-        } catch (Exception e) {
+    public synchronized void close() {
+        if (closing) {
+            return;
+        }
+        closing = true;
+
+        try (consumerExecutor) {
+            try {
+                connection.close();
+            } catch (AlreadyClosedException ignored) {
+            }
+        } catch (IOException e) {
             throw new IllegalStateException("Failed to close RabbitMQ connection", e);
         }
     }
@@ -93,8 +161,19 @@ public final class RabbitMqBroker implements MessageBroker {
         }
 
         synchronized (queueLock) {
-            if (declaredQueues.add(queueName)) {
+            if (!declaredQueues.contains(queueName)) {
                 channel.queueDeclare(queueName, true, false, false, null);
+                declaredQueues.add(queueName);
+            }
+        }
+    }
+
+    private void abortChannel(Channel channel, Throwable originalError) {
+        try {
+            channel.abort();
+        } catch (IOException | RuntimeException closingError) {
+            if (closingError != originalError) {
+                originalError.addSuppressed(closingError);
             }
         }
     }
