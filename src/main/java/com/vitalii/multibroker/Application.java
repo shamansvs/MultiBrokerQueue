@@ -25,13 +25,14 @@ public class Application {
     public static void main(String[] args) {
         AppConfig config = AppConfig.load();
 
-        try (MessageBroker broker = MessageBrokerFactory.create(config);
-             ValidatorFactory factory = Validation.byDefaultProvider()
-                     .configure()
-                     .messageInterpolator(new ParameterMessageInterpolator())
-                     .buildValidatorFactory();
+        try (ValidatorFactory factory = Validation.byDefaultProvider()
+                .configure()
+                .messageInterpolator(new ParameterMessageInterpolator())
+                .buildValidatorFactory();
              ValidCsvWriter validWriter = new ValidCsvWriter(config.validCsvPath());
-             InvalidCsvWriter invalidWriter = new InvalidCsvWriter(config.invalidCsvPath())) {
+             InvalidCsvWriter invalidWriter = new InvalidCsvWriter(config.invalidCsvPath());
+             MessageBroker broker = MessageBrokerFactory.create(config)) {
+
 
             MessageValidator validator = new MessageValidator(factory.getValidator());
             MessageProcessor processor = new MessageProcessor(validator, validWriter, invalidWriter);

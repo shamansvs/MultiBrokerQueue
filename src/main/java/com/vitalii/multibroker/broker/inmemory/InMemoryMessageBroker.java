@@ -40,6 +40,7 @@ public final class InMemoryMessageBroker implements MessageBroker {
     @Override
     public void close() {
         executor.shutdownNow();
+        executor.close();
     }
 
     private BlockingQueue<QueueMessage> getQueue(String queueName) {

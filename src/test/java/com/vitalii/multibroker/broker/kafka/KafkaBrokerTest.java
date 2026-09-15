@@ -25,10 +25,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 @EnabledIfEnvironmentVariable(named = "RUN_KAFKA_TESTS", matches = "true")
 class KafkaBrokerTest {
@@ -65,7 +62,7 @@ class KafkaBrokerTest {
 
     @Test
     void shouldReceiveMessageAndPoisonPillAndCommitOffset() throws Exception {
-        KafkaConfig config = new KafkaConfig(BOOTSTRAP_SERVERS, groupId,1);
+        KafkaConfig config = new KafkaConfig(BOOTSTRAP_SERVERS, groupId, 1);
 
         PojoMessage message = new PojoMessage(
                 "anastasia",
@@ -83,7 +80,7 @@ class KafkaBrokerTest {
 
     @Test
     void shouldResumeFromCommittedOffsetAfterRestart() throws Exception {
-        KafkaConfig config = new KafkaConfig(BOOTSTRAP_SERVERS, groupId,1);
+        KafkaConfig config = new KafkaConfig(BOOTSTRAP_SERVERS, groupId, 1);
 
         PojoMessage firstMessage = new PojoMessage(
                 "anastasia",
@@ -164,5 +161,60 @@ class KafkaBrokerTest {
         assertNotNull(committedOffset, "Consumer offset was not committed");
 
         assertEquals(expectedOffset, committedOffset.offset(), "Unexpected committed offset");
+    }
+
+    @Test
+    void shouldReportErrorAndRedeliverUncommittedMessage() throws Exception {
+        KafkaConfig config = new KafkaConfig(BOOTSTRAP_SERVERS, groupId, 1);
+
+        PojoMessage message = new PojoMessage(
+                "anastasia",
+                "2000010100019",
+                10,
+                LocalDateTime.of(2026, Month.JANUARY, 1, 12, 0)
+        );
+
+        IllegalStateException expectedError = new IllegalStateException("CSV writing failed");
+
+        AtomicReference<Throwable> receivedError = new AtomicReference<>();
+        CountDownLatch errorLatch = new CountDownLatch(1);
+
+        QueueMessageHandler handler = new QueueMessageHandler() {
+            @Override
+            public boolean handle(QueueMessage receivedMessage) {
+                throw expectedError;
+            }
+
+            @Override
+            public void onError(Throwable error) {
+                receivedError.compareAndSet(null, error);
+                errorLatch.countDown();
+            }
+        };
+
+        try (KafkaBroker broker = new KafkaBroker(config, new JsonQueueMessageSerializer())) {
+            broker.subscribe(topicName, handler);
+            broker.send(topicName, message);
+
+            assertTrue(errorLatch.await(20, TimeUnit.SECONDS),
+                    "Processing error was not reported within 20 seconds");
+        }
+
+        assertSame(expectedError, receivedError.get(),
+                "Handler must receive the original processing error");
+
+        PojoMessage secondMessage = new PojoMessage(
+                "alexander",
+                "2000010100019",
+                20,
+                LocalDateTime.of(2026, Month.JANUARY, 1, 13, 0)
+        );
+
+        List<QueueMessage> receivedAfterRestart = sendAndReceive(config, secondMessage);
+
+        assertEquals(List.of(message, secondMessage, PoisonPill.STOP), receivedAfterRestart,
+                "Failed message must be delivered again after restart");
+
+        assertCommittedOffset(3L);
     }
 }

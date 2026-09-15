@@ -5,7 +5,9 @@ import com.vitalii.multibroker.model.PojoMessage;
 import com.vitalii.multibroker.model.QueueMessage;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -17,12 +19,10 @@ class InMemoryMessageBrokerTest {
     private static final String QUEUE_NAME = "test-queue";
 
     @Test
-    void shouldDeliverMessageAndStopAfterPoisonPill()
-            throws InterruptedException {
+    void shouldDeliverMessageAndStopAfterPoisonPill() throws InterruptedException {
 
         try (InMemoryMessageBroker broker = new InMemoryMessageBroker()) {
-            List<QueueMessage> receivedMessages =
-                    new CopyOnWriteArrayList<>();
+            List<QueueMessage> receivedMessages = new CopyOnWriteArrayList<>();
 
             CountDownLatch receivedLatch = new CountDownLatch(2);
 
@@ -43,14 +43,36 @@ class InMemoryMessageBrokerTest {
             broker.send(QUEUE_NAME, message);
             broker.send(QUEUE_NAME, PoisonPill.STOP);
 
-            boolean wereMessagesReceived =
-                    receivedLatch.await(1, TimeUnit.SECONDS);
+            boolean wereMessagesReceived = receivedLatch.await(1, TimeUnit.SECONDS);
 
             assertTrue(wereMessagesReceived);
-            assertEquals(
-                    List.of(message, PoisonPill.STOP),
-                    receivedMessages
-            );
+            assertEquals(List.of(message, PoisonPill.STOP), receivedMessages);
         }
+    }
+
+    @Test
+    void shouldCloseWithoutPoisonPill() {
+        assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
+            CountDownLatch messageHandled = new CountDownLatch(1);
+
+            try (InMemoryMessageBroker broker = new InMemoryMessageBroker()) {
+                broker.subscribe(QUEUE_NAME, message -> {
+                    messageHandled.countDown();
+                    return true;
+                });
+
+                PojoMessage message = new PojoMessage(
+                        "anastasia",
+                        "2000010100019",
+                        10,
+                        LocalDateTime.of(2026, Month.JANUARY, 1, 12, 0)
+                );
+
+                broker.send(QUEUE_NAME, message);
+
+                assertTrue(messageHandled.await(1, TimeUnit.SECONDS),
+                        "Consumer did not handle the message");
+            }
+        });
     }
 }
