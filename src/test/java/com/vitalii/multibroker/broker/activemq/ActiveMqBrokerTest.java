@@ -21,10 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@EnabledIfEnvironmentVariable(
-        named = "RUN_ARTEMIS_TESTS",
-        matches = "true"
-)
+@EnabledIfEnvironmentVariable(named = "RUN_ARTEMIS_TESTS", matches = "true")
 class ActiveMqBrokerTest {
 
     @Test
@@ -35,7 +32,6 @@ class ActiveMqBrokerTest {
                 "artemis",
                 "artemis"
         );
-
         String queueName = "test-pojo-" + UUID.randomUUID();
 
         PojoMessage message = new PojoMessage(
@@ -44,18 +40,12 @@ class ActiveMqBrokerTest {
                 10,
                 LocalDateTime.of(2026, Month.JANUARY, 15, 10, 30)
         );
-
-        List<QueueMessage> receivedMessages =
-                new CopyOnWriteArrayList<>();
-
+        List<QueueMessage> receivedMessages = new CopyOnWriteArrayList<>();
         CountDownLatch completion = new CountDownLatch(1);
-        AtomicReference<Throwable> processingError =
-                new AtomicReference<>();
+        AtomicReference<Throwable> processingError = new AtomicReference<>();
 
-        try (ActiveMqBroker broker = new ActiveMqBroker(
-                new ActiveMqConnectionProvider(config),
-                new JsonQueueMessageSerializer()
-        )) {
+        try (ActiveMqBroker broker = new ActiveMqBroker(new ActiveMqConnectionProvider(config),
+                new JsonQueueMessageSerializer())) {
             broker.subscribe(queueName, new QueueMessageHandler() {
                 @Override
                 public boolean handle(QueueMessage receivedMessage) {
@@ -65,7 +55,6 @@ class ActiveMqBrokerTest {
                         completion.countDown();
                         return false;
                     }
-
                     return true;
                 }
 
@@ -79,20 +68,11 @@ class ActiveMqBrokerTest {
             broker.send(queueName, message);
             broker.send(queueName, PoisonPill.STOP);
 
-            assertTrue(
-                    completion.await(5, TimeUnit.SECONDS),
-                    "Consumer did not finish within 5 seconds"
-            );
+            assertTrue(completion.await(5, TimeUnit.SECONDS),
+                    "Consumer did not finish within 5 seconds");
         }
 
-        assertNull(
-                processingError.get(),
-                () -> "Processing failed: " + processingError.get()
-        );
-
-        assertEquals(
-                List.of(message, PoisonPill.STOP),
-                receivedMessages
-        );
+        assertNull(processingError.get(), () -> "Processing failed: " + processingError.get());
+        assertEquals(List.of(message, PoisonPill.STOP), receivedMessages);
     }
 }
