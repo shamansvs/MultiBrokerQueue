@@ -42,10 +42,7 @@ class ConsumerWorkerTest {
         assertEquals(0, worker.getProcessedMessagesCount());
         verifyNoInteractions(processor);
 
-        assertTimeout(
-                Duration.ofSeconds(1),
-                worker::awaitCompletion
-        );
+        assertTimeoutPreemptively(Duration.ofSeconds(1), worker::awaitCompletion);
     }
 
     @Test
