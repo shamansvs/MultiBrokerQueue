@@ -54,7 +54,8 @@ class MessageBrokerFactoryTest {
                         "artemis"),
                 new KafkaConfig(
                         "localhost:9092",
-                        "test-consumers"
+                        "test-consumers",
+                        1
                 )
         );
     }

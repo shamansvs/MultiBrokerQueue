@@ -65,7 +65,7 @@ class KafkaBrokerTest {
 
     @Test
     void shouldReceiveMessageAndPoisonPillAndCommitOffset() throws Exception {
-        KafkaConfig config = new KafkaConfig(BOOTSTRAP_SERVERS, groupId);
+        KafkaConfig config = new KafkaConfig(BOOTSTRAP_SERVERS, groupId,1);
 
         PojoMessage message = new PojoMessage(
                 "anastasia",
@@ -83,7 +83,7 @@ class KafkaBrokerTest {
 
     @Test
     void shouldResumeFromCommittedOffsetAfterRestart() throws Exception {
-        KafkaConfig config = new KafkaConfig(BOOTSTRAP_SERVERS, groupId);
+        KafkaConfig config = new KafkaConfig(BOOTSTRAP_SERVERS, groupId,1);
 
         PojoMessage firstMessage = new PojoMessage(
                 "anastasia",
