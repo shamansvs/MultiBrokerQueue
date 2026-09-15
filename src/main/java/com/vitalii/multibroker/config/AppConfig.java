@@ -54,8 +54,9 @@ public record AppConfig(
                             properties.getProperty("activemq.passwordd")),
                     new KafkaConfig(
                             properties.getProperty("kafka.bootstrap.servers"),
-                            properties.getProperty("kafka.group.id"))
-            );
+                            properties.getProperty("kafka.group.id"),
+                            Integer.parseInt(properties.getProperty("kafka.partitions.count")))
+                    );
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load application.properties", e);
         }

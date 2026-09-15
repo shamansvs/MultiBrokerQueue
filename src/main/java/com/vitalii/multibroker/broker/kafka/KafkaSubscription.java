@@ -26,13 +26,19 @@ public final class KafkaSubscription implements Runnable {
     private final KafkaConsumer<String, byte[]> consumer;
     private final QueueMessageSerializer serializer;
     private final QueueMessageHandler handler;
-    private final String queueName;
+    private final TopicPartition topicPartition;
 
     private volatile boolean stopRequested;
 
-    public KafkaSubscription(KafkaConfig config, String queueName,
+    public KafkaSubscription(KafkaConfig config, String queueName, int partition,
                              QueueMessageSerializer serializer, QueueMessageHandler handler) {
-        this.queueName = Objects.requireNonNull(queueName);
+        Objects.requireNonNull(config);
+
+        if (partition < 0 || partition >= config.partitionsCount()) {
+            throw new IllegalArgumentException("Invalid Kafka partition: " + partition);
+        }
+
+        this.topicPartition = new TopicPartition(Objects.requireNonNull(queueName), partition);
         this.serializer = Objects.requireNonNull(serializer);
         this.handler = Objects.requireNonNull(handler);
         this.consumer = createConsumer(config);
@@ -57,7 +63,7 @@ public final class KafkaSubscription implements Runnable {
             boolean receivedStop;
 
             try (consumer) {
-                consumer.subscribe(List.of(queueName));
+                consumer.assign(List.of(topicPartition));
                 receivedStop = readMessages();
             }
 
@@ -102,10 +108,10 @@ public final class KafkaSubscription implements Runnable {
     }
 
     private void commitThrough(ConsumerRecord<String, byte[]> record) {
-        TopicPartition partition = new TopicPartition(record.topic(), record.partition());
-        OffsetAndMetadata nextOffset = new OffsetAndMetadata(record.offset() + 1);
+        OffsetAndMetadata nextOffset =
+                new OffsetAndMetadata(record.offset() + 1);
 
-        consumer.commitSync(Map.of(partition, nextOffset));
+        consumer.commitSync(Map.of(topicPartition, nextOffset));
     }
 
     public void requestStop() {
