@@ -8,8 +8,7 @@ import java.util.concurrent.*;
 
 
 public final class InMemoryMessageBroker implements MessageBroker {
-    private final ConcurrentHashMap<String, BlockingQueue<QueueMessage>> queues =
-            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, BlockingQueue<QueueMessage>> queues = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     @Override
@@ -20,21 +19,23 @@ public final class InMemoryMessageBroker implements MessageBroker {
     @Override
     public void subscribe(String queueName, QueueMessageHandler handler) {
         executor.submit(() -> {
-                    try {
-                        while (!Thread.currentThread().isInterrupted()) {
-                            QueueMessage message = getQueue(queueName).take();
-
-                            boolean shouldContinue = handler.handle(message);
-
-                            if (!shouldContinue) {
-                                return;
-                            }
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+            try {
+                while (!Thread.currentThread().isInterrupted()) {
+                    QueueMessage message = getQueue(queueName).take();
+                    boolean shouldContinue = handler.handle(message);
+                    if (!shouldContinue) {
+                        return;
                     }
                 }
-        );
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                if (!executor.isShutdown()) {
+                    handler.onError(e);
+                }
+            } catch (RuntimeException e) {
+                handler.onError(e);
+            }
+        });
     }
 
     @Override

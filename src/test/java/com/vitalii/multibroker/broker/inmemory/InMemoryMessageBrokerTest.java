@@ -1,8 +1,10 @@
 package com.vitalii.multibroker.broker.inmemory;
 
+import com.vitalii.multibroker.consumer.ConsumerWorker;
 import com.vitalii.multibroker.model.PoisonPill;
 import com.vitalii.multibroker.model.PojoMessage;
 import com.vitalii.multibroker.model.QueueMessage;
+import com.vitalii.multibroker.processing.MessageProcessor;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -14,6 +16,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 class InMemoryMessageBrokerTest {
     private static final String QUEUE_NAME = "test-queue";
@@ -23,7 +26,6 @@ class InMemoryMessageBrokerTest {
 
         try (InMemoryMessageBroker broker = new InMemoryMessageBroker()) {
             List<QueueMessage> receivedMessages = new CopyOnWriteArrayList<>();
-
             CountDownLatch receivedLatch = new CountDownLatch(2);
 
             broker.subscribe(QUEUE_NAME, message -> {
@@ -74,5 +76,37 @@ class InMemoryMessageBrokerTest {
                         "Consumer did not handle the message");
             }
         });
+    }
+
+    @Test
+    void shouldReportProcessingFailureWithoutPoisonPill() {
+        MessageProcessor processor = mock(MessageProcessor.class);
+        ConsumerWorker worker = new ConsumerWorker(processor);
+
+        PojoMessage message = new PojoMessage(
+                "anastasia",
+                "2000010100019",
+                10,
+                LocalDateTime.of(2026, Month.JANUARY, 15, 10, 30)
+        );
+        RuntimeException cause = new IllegalStateException("CSV writing failed");
+        doThrow(cause).when(processor).process(message);
+
+        try (InMemoryMessageBroker broker = new InMemoryMessageBroker()) {
+            broker.subscribe(QUEUE_NAME, worker);
+            broker.send(QUEUE_NAME, message);
+
+            assertTimeoutPreemptively(Duration.ofSeconds(5), () -> {
+                IllegalStateException exception = assertThrows(
+                        IllegalStateException.class,
+                        worker::awaitCompletion
+                );
+
+                assertSame(cause, exception.getCause());
+            });
+
+            verify(processor).process(message);
+            assertEquals(0, worker.getProcessedMessagesCount());
+        }
     }
 }
