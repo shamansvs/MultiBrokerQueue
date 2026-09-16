@@ -1,22 +1,21 @@
 package com.vitalii.multibroker.broker.activemq;
 
 import com.vitalii.multibroker.broker.QueueMessageHandler;
-import com.vitalii.multibroker.model.PojoMessage;
 import com.vitalii.multibroker.model.PoisonPill;
+import com.vitalii.multibroker.model.PojoMessage;
 import com.vitalii.multibroker.model.QueueMessage;
 import com.vitalii.multibroker.serialization.JsonQueueMessageSerializer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
@@ -165,5 +164,73 @@ class ActiveMqBrokerTest {
                 "Unexpected number of processed messages");
         assertEquals(new HashSet<>(sentMessages), new HashSet<>(processedMessages),
                 "Processed messages must match sent messages");
+    }
+
+    @Test
+    void shouldWaitForActiveHandlerBeforeClosing() {
+        assertTimeoutPreemptively(Duration.ofSeconds(20), () -> {
+            ActiveMqConfig config = new ActiveMqConfig(
+                    "localhost",
+                    61616,
+                    "artemis",
+                    "artemis"
+            );
+            String queueName = "test-close-" + UUID.randomUUID();
+            CountDownLatch handlerStarted = new CountDownLatch(1);
+            CountDownLatch allowHandlerToFinish = new CountDownLatch(1);
+            CountDownLatch handlerFinished = new CountDownLatch(1);
+            CountDownLatch closeStarted = new CountDownLatch(1);
+            AtomicReference<Throwable> processingError = new AtomicReference<>();
+
+            try (ActiveMqBroker broker = new ActiveMqBroker(
+                    new ActiveMqConnectionProvider(config), new JsonQueueMessageSerializer());
+                 ExecutorService executor = Executors.newSingleThreadExecutor()) {
+                try {
+                    broker.subscribe(queueName, new QueueMessageHandler() {
+                        @Override
+                        public boolean handle(QueueMessage message) {
+                            handlerStarted.countDown();
+                            try {
+                                allowHandlerToFinish.await();
+                                return true;
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                throw new IllegalStateException("Handler was interrupted", e);
+                            } finally {
+                                handlerFinished.countDown();
+                            }
+                        }
+
+                        @Override
+                        public void onError(Throwable error) {
+                            processingError.compareAndSet(null, error);
+                        }
+                    });
+
+                    broker.send(queueName, new PojoMessage(
+                            "anastasia",
+                            "2000010100019",
+                            10,
+                            LocalDateTime.of(2026, Month.JANUARY, 15, 10, 30)
+                    ));
+
+                    assertTrue(handlerStarted.await(5, TimeUnit.SECONDS), "Handler did not start");
+                    Future<?> closingTask = executor.submit(() -> {
+                        closeStarted.countDown();
+                        broker.close();
+                    });
+                    assertTrue(closeStarted.await(2, TimeUnit.SECONDS), "Closing task did not start");
+                    assertThrows(TimeoutException.class, () -> closingTask.get(200, TimeUnit.MILLISECONDS));
+
+                    allowHandlerToFinish.countDown();
+                    closingTask.get(5, TimeUnit.SECONDS);
+
+                    assertEquals(0L, handlerFinished.getCount());
+                    assertNull(processingError.get(), () -> "Processing failed: " + processingError.get());
+                } finally {
+                    allowHandlerToFinish.countDown();
+                }
+            }
+        });
     }
 }
