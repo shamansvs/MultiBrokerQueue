@@ -10,16 +10,17 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import java.time.LocalDateTime;
 import java.time.Month;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 @EnabledIfEnvironmentVariable(named = "RUN_ARTEMIS_TESTS", matches = "true")
 class ActiveMqBrokerTest {
@@ -67,12 +68,102 @@ class ActiveMqBrokerTest {
 
             broker.send(queueName, message);
             broker.send(queueName, PoisonPill.STOP);
-
             assertTrue(completion.await(5, TimeUnit.SECONDS),
                     "Consumer did not finish within 5 seconds");
         }
 
         assertNull(processingError.get(), () -> "Processing failed: " + processingError.get());
         assertEquals(List.of(message, PoisonPill.STOP), receivedMessages);
+    }
+
+    @Test
+    void shouldDeliverAllMessagesAndStopEachConsumer() throws InterruptedException {
+        int consumersCount = 3;
+        int messagesCount = 7;
+
+        ActiveMqConfig config = new ActiveMqConfig(
+                "localhost",
+                61616,
+                "artemis",
+                "artemis"
+        );
+
+        String queueName = "test-multiple-consumers-" + UUID.randomUUID();
+        LocalDateTime createdAt = LocalDateTime.of(2026, Month.JANUARY, 15, 10, 30);
+        List<PojoMessage> sentMessages = IntStream.range(0, messagesCount)
+                .mapToObj(index -> new PojoMessage(
+                        "anastasia-" + index,
+                        "2000010100019",
+                        10 + index,
+                        createdAt
+                ))
+                .toList();
+
+        List<List<QueueMessage>> messagesByConsumer = new ArrayList<>();
+        CountDownLatch completion = new CountDownLatch(consumersCount);
+        AtomicReference<Throwable> processingError = new AtomicReference<>();
+
+        try (ActiveMqBroker broker = new ActiveMqBroker(
+                new ActiveMqConnectionProvider(config), new JsonQueueMessageSerializer())) {
+            for (int i = 0; i < consumersCount; i++) {
+                List<QueueMessage> receivedMessages = new CopyOnWriteArrayList<>();
+                messagesByConsumer.add(receivedMessages);
+                broker.subscribe(queueName, new QueueMessageHandler() {
+                    @Override
+                    public boolean handle(QueueMessage message) {
+                        receivedMessages.add(message);
+
+                        if (message == PoisonPill.STOP) {
+                            completion.countDown();
+                            return false;
+                        }
+                        return true;
+                    }
+
+                    @Override
+                    public void onError(Throwable error) {
+                        processingError.compareAndSet(null, error);
+                        while (completion.getCount() > 0) {
+                            completion.countDown();
+                        }
+                    }
+                });
+            }
+
+            for (PojoMessage message : sentMessages) {
+                broker.send(queueName, message);
+            }
+
+            for (int i = 0; i < consumersCount; i++) {
+                broker.send(queueName, PoisonPill.STOP);
+            }
+
+            assertTrue(completion.await(10, TimeUnit.SECONDS),
+                    "Not all consumers finished within 10 seconds");
+            assertNull(processingError.get(), () -> "Processing failed: " + processingError.get());
+        }
+
+        assertNull(processingError.get(), () -> "Processing failed: " + processingError.get());
+        for (List<QueueMessage> receivedMessages : messagesByConsumer) {
+            assertFalse(receivedMessages.isEmpty(), "Each consumer must receive STOP");
+            assertEquals(PoisonPill.STOP, receivedMessages.getLast(),
+                    "STOP must be the last message");
+            long stopCount = receivedMessages.stream()
+                    .filter(message -> message == PoisonPill.STOP)
+                    .count();
+
+            assertEquals(1L, stopCount, "Each consumer must receive exactly one STOP");
+        }
+
+        List<PojoMessage> processedMessages = messagesByConsumer.stream()
+                .flatMap(List::stream)
+                .filter(PojoMessage.class::isInstance)
+                .map(PojoMessage.class::cast)
+                .toList();
+
+        assertEquals(messagesCount, processedMessages.size(),
+                "Unexpected number of processed messages");
+        assertEquals(new HashSet<>(sentMessages), new HashSet<>(processedMessages),
+                "Processed messages must match sent messages");
     }
 }
