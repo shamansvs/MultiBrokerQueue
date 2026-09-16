@@ -62,18 +62,12 @@ public final class ConsumerRunner {
 
             @Override
             public boolean handle(QueueMessage message) {
-                try {
-                    boolean shouldContinue = consumer.handle(message);
-
-                    if (!shouldContinue) {
-                        reportCompletion();
-                    }
-
-                    return shouldContinue;
-                } catch (RuntimeException e) {
-                    onError(e);
-                    throw e;
+                boolean shouldContinue = consumer.handle(message);
+                if (!shouldContinue) {
+                    reportCompletion();
                 }
+
+                return shouldContinue;
             }
 
             @Override
@@ -104,7 +98,6 @@ public final class ConsumerRunner {
             logStatistics();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-
             throw new IllegalStateException("Consumer processing was interrupted", e);
         }
     }
@@ -116,7 +109,6 @@ public final class ConsumerRunner {
 
         long durationNanos = System.nanoTime() - consumerStartNanos;
         long durationMillis = TimeUnit.NANOSECONDS.toMillis(durationNanos);
-
         long messagesPerSecond = Math.round(processedMessagesCount * 1_000_000_000.0 / Math.max(1, durationNanos));
 
         LOGGER.info("Consumers processed {} messages in {} ms ({} msg/s)",
