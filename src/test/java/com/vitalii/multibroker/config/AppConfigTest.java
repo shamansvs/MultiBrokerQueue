@@ -23,7 +23,6 @@ class AppConfigTest {
 
         properties.setProperty("broker.type", "rabbitmq");
         properties.setProperty("queue.name", "test-messages");
-        properties.setProperty("producers.count", "1");
         properties.setProperty("consumers.count", "3");
         properties.setProperty("messages.count", "1000000");
         properties.setProperty("csv.valid.path", "valid.csv");
@@ -51,7 +50,6 @@ class AppConfigTest {
         assertAll(
                 () -> assertEquals("rabbitmq", config.brokerType()),
                 () -> assertEquals("test-messages", config.queueName()),
-                () -> assertEquals(1, config.producersCount()),
                 () -> assertEquals(3, config.consumersCount()),
                 () -> assertEquals(1_000_000L, config.messagesCount()),
                 () -> assertEquals(Path.of("valid.csv"), config.validCsvPath()),
@@ -76,8 +74,6 @@ class AppConfigTest {
 
     @ParameterizedTest
     @CsvSource({
-            "producers.count, 0",
-            "producers.count, -1",
             "consumers.count, 0",
             "consumers.count, -1",
             "messages.count, 0",

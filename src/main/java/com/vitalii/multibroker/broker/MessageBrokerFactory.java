@@ -19,9 +19,7 @@ public final class MessageBrokerFactory {
     }
 
     public static MessageBroker create(AppConfig config) {
-        String brokerType = config.brokerType()
-                .trim()
-                .toLowerCase(Locale.ROOT);
+        String brokerType = config.brokerType().trim().toLowerCase(Locale.ROOT);
 
         return switch (brokerType) {
             case "inmemory" -> new InMemoryMessageBroker();
@@ -42,18 +40,12 @@ public final class MessageBrokerFactory {
 
             case "kafka" -> createKafkaBroker(config);
 
-            default -> throw new IllegalArgumentException(
-                    "Unsupported broker type: " + config.brokerType()
-            );
+            default -> throw new IllegalArgumentException("Unsupported broker type: " + config.brokerType());
         };
     }
 
     private static MessageBroker createKafkaBroker(AppConfig config) {
         KafkaConfig kafkaConfig = config.kafkaConfig();
-
-        if (config.producersCount() != 1) {
-            throw new IllegalArgumentException("Kafka currently requires one producer");
-        }
 
         if (config.consumersCount() != kafkaConfig.partitionsCount()) {
             throw new IllegalArgumentException("Kafka consumers count must equal partitions count");

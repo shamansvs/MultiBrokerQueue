@@ -38,7 +38,6 @@ class MessageBrokerFactoryTest {
                 brokerType,
                 "test-queue",
                 1,
-                1,
                 100,
                 Path.of("valid.csv"),
                 Path.of("invalid.csv"),

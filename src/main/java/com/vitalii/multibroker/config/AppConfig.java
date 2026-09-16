@@ -12,7 +12,6 @@ import java.util.Properties;
 public record AppConfig(
         String brokerType,
         String queueName,
-        int producersCount,
         int consumersCount,
         long messagesCount,
         Path validCsvPath,
@@ -22,9 +21,6 @@ public record AppConfig(
         KafkaConfig kafkaConfig
 ) {
     public AppConfig {
-        if (producersCount < 1) {
-            throw new IllegalArgumentException("producers.count must be greater than zero");
-        }
         if (consumersCount < 1) {
             throw new IllegalArgumentException("consumers.count must be greater than zero");
         }
@@ -55,7 +51,6 @@ public record AppConfig(
         return new AppConfig(
                 properties.getProperty("broker.type"),
                 properties.getProperty("queue.name"),
-                Integer.parseInt(properties.getProperty("producers.count")),
                 Integer.parseInt(properties.getProperty("consumers.count")),
                 Long.parseLong(properties.getProperty("messages.count")),
                 Path.of(properties.getProperty("csv.valid.path")),
