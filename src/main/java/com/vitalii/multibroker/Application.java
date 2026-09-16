@@ -17,6 +17,7 @@ import org.hibernate.validator.messageinterpolation.ParameterMessageInterpolator
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 public class Application {
@@ -48,7 +49,7 @@ public class Application {
 
             consumerRunner.start();
             producerRunner.run();
-            consumerRunner.awaitCompletion();
+            consumerRunner.awaitCompletion(Duration.ofSeconds(config.consumersCompletionTimeoutSeconds()));
 
             long totalMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - totalStart);
             LOGGER.info("Total time: {} ms", totalMillis);

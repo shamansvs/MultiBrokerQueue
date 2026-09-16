@@ -18,7 +18,8 @@ public record AppConfig(
         Path invalidCsvPath,
         RabbitMqConfig rabbitMqConfig,
         ActiveMqConfig activeMqConfig,
-        KafkaConfig kafkaConfig
+        KafkaConfig kafkaConfig,
+        int consumersCompletionTimeoutSeconds
 ) {
     public AppConfig {
         if (consumersCount < 1) {
@@ -26,6 +27,9 @@ public record AppConfig(
         }
         if (messagesCount < 1) {
             throw new IllegalArgumentException("messages.count must be greater than zero");
+        }
+        if (consumersCompletionTimeoutSeconds < 1) {
+            throw new IllegalArgumentException("consumers.completion.timeout.seconds must be greater than zero");
         }
     }
 
@@ -68,7 +72,8 @@ public record AppConfig(
                 new KafkaConfig(
                         properties.getProperty("kafka.bootstrap.servers"),
                         properties.getProperty("kafka.group.id"),
-                        Integer.parseInt(properties.getProperty("kafka.partitions.count")))
+                        Integer.parseInt(properties.getProperty("kafka.partitions.count"))),
+                Integer.parseInt(properties.getProperty("consumers.completion.timeout.seconds"))
         );
     }
 }

@@ -41,6 +41,8 @@ class AppConfigTest {
         properties.setProperty("kafka.bootstrap.servers", "localhost:9092");
         properties.setProperty("kafka.group.id", "test-group");
         properties.setProperty("kafka.partitions.count", "3");
+
+        properties.setProperty("consumers.completion.timeout.seconds", "60");
     }
 
     @Test
@@ -61,7 +63,8 @@ class AppConfigTest {
                         "localhost", 61616,
                         "artemis", "artemis-test-password"), config.activeMqConfig()),
                 () -> assertEquals(new KafkaConfig("localhost:9092",
-                        "test-group", 3), config.kafkaConfig())
+                        "test-group", 3), config.kafkaConfig()),
+                () -> assertEquals(60, config.consumersCompletionTimeoutSeconds())
         );
     }
 
@@ -77,7 +80,9 @@ class AppConfigTest {
             "consumers.count, 0",
             "consumers.count, -1",
             "messages.count, 0",
-            "messages.count, -1"
+            "messages.count, -1",
+            "consumers.completion.timeout.seconds, 0",
+            "consumers.completion.timeout.seconds, -1"
     })
     void shouldRejectNonPositiveCounts(String propertyName, String value) {
         properties.setProperty(propertyName, value);

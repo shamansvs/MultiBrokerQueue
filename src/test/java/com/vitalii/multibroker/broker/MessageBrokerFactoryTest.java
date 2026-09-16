@@ -54,8 +54,8 @@ class MessageBrokerFactoryTest {
                 new KafkaConfig(
                         "localhost:9092",
                         "test-consumers",
-                        1
-                )
+                        1),
+                60
         );
     }
 }

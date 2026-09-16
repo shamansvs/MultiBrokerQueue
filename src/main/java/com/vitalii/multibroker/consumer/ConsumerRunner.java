@@ -7,6 +7,7 @@ import com.vitalii.multibroker.processing.MessageProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -84,17 +85,30 @@ public final class ConsumerRunner {
         };
     }
 
-    public void awaitCompletion() {
+    public void awaitCompletion(Duration timeout) {
+        Objects.requireNonNull(timeout, "timeout must not be null");
+
         if (!started) {
             throw new IllegalStateException("Consumer runner has not been started");
         }
+        if (timeout.isZero() || timeout.isNegative()) {
+            throw new IllegalArgumentException("Completion timeout must be greater than zero");
+        }
+        long timeoutNanos = timeout.toNanos();
+        long waitingStart = System.nanoTime();
 
         try {
-            for (int i = 0; i < consumersCount; i++) {
-                ConsumerWorker consumer = completedConsumers.take();
+            for (int completedCount = 0; completedCount < consumersCount; completedCount++) {
+                long waitingDuration = System.nanoTime() - waitingStart;
+                long remainingNanos = Math.max(0, timeoutNanos - waitingDuration);
+                ConsumerWorker consumer = completedConsumers.poll(remainingNanos, TimeUnit.NANOSECONDS);
+
+                if (consumer == null) {
+                    throw new IllegalStateException("Timed out waiting for consumers: completed %d of %d"
+                            .formatted(completedCount, consumersCount));
+                }
                 consumer.awaitCompletion();
             }
-
             logStatistics();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
