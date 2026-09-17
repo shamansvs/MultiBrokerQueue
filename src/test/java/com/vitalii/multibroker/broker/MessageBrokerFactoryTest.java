@@ -1,6 +1,7 @@
 package com.vitalii.multibroker.broker;
 
 import com.vitalii.multibroker.broker.activemq.ActiveMqConfig;
+import com.vitalii.multibroker.broker.inmemory.InMemoryConfig;
 import com.vitalii.multibroker.broker.inmemory.InMemoryMessageBroker;
 import com.vitalii.multibroker.broker.kafka.KafkaConfig;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConfig;
@@ -55,7 +56,8 @@ class MessageBrokerFactoryTest {
                         "localhost:9092",
                         "test-consumers",
                         1),
-                60
+                60,
+                new InMemoryConfig(100, 1)
         );
     }
 }

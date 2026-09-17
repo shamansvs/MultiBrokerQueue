@@ -1,6 +1,7 @@
 package com.vitalii.multibroker.config;
 
 import com.vitalii.multibroker.broker.activemq.ActiveMqConfig;
+import com.vitalii.multibroker.broker.inmemory.InMemoryConfig;
 import com.vitalii.multibroker.broker.kafka.KafkaConfig;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConfig;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +44,9 @@ class AppConfigTest {
         properties.setProperty("kafka.partitions.count", "3");
 
         properties.setProperty("consumers.completion.timeout.seconds", "60");
+
+        properties.setProperty("inmemory.queue.capacity", "10000");
+        properties.setProperty("inmemory.send.timeout.seconds", "30");
     }
 
     @Test
@@ -64,7 +68,9 @@ class AppConfigTest {
                         "artemis", "artemis-test-password"), config.activeMqConfig()),
                 () -> assertEquals(new KafkaConfig("localhost:9092",
                         "test-group", 3), config.kafkaConfig()),
-                () -> assertEquals(60, config.consumersCompletionTimeoutSeconds())
+                () -> assertEquals(60, config.consumersCompletionTimeoutSeconds()),
+                () -> assertEquals(new InMemoryConfig(10_000, 30),
+                        config.inMemoryConfig())
         );
     }
 

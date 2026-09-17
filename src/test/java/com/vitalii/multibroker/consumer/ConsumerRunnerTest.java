@@ -2,6 +2,7 @@ package com.vitalii.multibroker.consumer;
 
 import com.vitalii.multibroker.broker.MessageBroker;
 import com.vitalii.multibroker.broker.QueueMessageHandler;
+import com.vitalii.multibroker.broker.inmemory.InMemoryConfig;
 import com.vitalii.multibroker.broker.inmemory.InMemoryMessageBroker;
 import com.vitalii.multibroker.model.PoisonPill;
 import com.vitalii.multibroker.model.PojoMessage;
@@ -24,7 +25,8 @@ class ConsumerRunnerTest {
     void shouldProcessMessagesAndStopAllConsumers() {
         MessageProcessor processor = mock(MessageProcessor.class);
 
-        try (InMemoryMessageBroker broker = new InMemoryMessageBroker()) {
+        try (InMemoryMessageBroker broker =
+                     new InMemoryMessageBroker(new InMemoryConfig(100, 1))) {
             ConsumerRunner runner = new ConsumerRunner(broker, processor, QUEUE_NAME, CONSUMERS_COUNT);
 
             runner.start();

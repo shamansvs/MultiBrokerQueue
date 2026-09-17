@@ -22,7 +22,7 @@ public final class MessageBrokerFactory {
         String brokerType = config.brokerType().trim().toLowerCase(Locale.ROOT);
 
         return switch (brokerType) {
-            case "inmemory" -> new InMemoryMessageBroker();
+            case "inmemory" -> new InMemoryMessageBroker(config.inMemoryConfig());
 
             case "rabbitmq" -> {
                 RabbitMqConnectionProvider connectionProvider = new RabbitMqConnectionProvider(config.rabbitMqConfig());

@@ -1,6 +1,7 @@
 package com.vitalii.multibroker.config;
 
 import com.vitalii.multibroker.broker.activemq.ActiveMqConfig;
+import com.vitalii.multibroker.broker.inmemory.InMemoryConfig;
 import com.vitalii.multibroker.broker.kafka.KafkaConfig;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConfig;
 
@@ -19,7 +20,8 @@ public record AppConfig(
         RabbitMqConfig rabbitMqConfig,
         ActiveMqConfig activeMqConfig,
         KafkaConfig kafkaConfig,
-        int consumersCompletionTimeoutSeconds
+        int consumersCompletionTimeoutSeconds,
+        InMemoryConfig inMemoryConfig
 ) {
     public AppConfig {
         if (consumersCount < 1) {
@@ -73,7 +75,10 @@ public record AppConfig(
                         properties.getProperty("kafka.bootstrap.servers"),
                         properties.getProperty("kafka.group.id"),
                         Integer.parseInt(properties.getProperty("kafka.partitions.count"))),
-                Integer.parseInt(properties.getProperty("consumers.completion.timeout.seconds"))
+                Integer.parseInt(properties.getProperty("consumers.completion.timeout.seconds")),
+                new InMemoryConfig(
+                        Integer.parseInt(properties.getProperty("inmemory.queue.capacity")),
+                        Integer.parseInt(properties.getProperty("inmemory.send.timeout.seconds")))
         );
     }
 }

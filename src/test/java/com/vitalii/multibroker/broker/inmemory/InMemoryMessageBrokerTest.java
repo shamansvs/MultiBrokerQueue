@@ -24,7 +24,8 @@ class InMemoryMessageBrokerTest {
     @Test
     void shouldDeliverMessageAndStopAfterPoisonPill() throws InterruptedException {
 
-        try (InMemoryMessageBroker broker = new InMemoryMessageBroker()) {
+        try (InMemoryMessageBroker broker =
+                     new InMemoryMessageBroker(new InMemoryConfig(100, 1))) {
             List<QueueMessage> receivedMessages = new CopyOnWriteArrayList<>();
             CountDownLatch receivedLatch = new CountDownLatch(2);
 
@@ -57,7 +58,8 @@ class InMemoryMessageBrokerTest {
         assertTimeoutPreemptively(Duration.ofSeconds(3), () -> {
             CountDownLatch messageHandled = new CountDownLatch(1);
 
-            try (InMemoryMessageBroker broker = new InMemoryMessageBroker()) {
+            try (InMemoryMessageBroker broker =
+                         new InMemoryMessageBroker(new InMemoryConfig(100, 1))) {
                 broker.subscribe(QUEUE_NAME, message -> {
                     messageHandled.countDown();
                     return true;
@@ -92,7 +94,8 @@ class InMemoryMessageBrokerTest {
         RuntimeException cause = new IllegalStateException("CSV writing failed");
         doThrow(cause).when(processor).process(message);
 
-        try (InMemoryMessageBroker broker = new InMemoryMessageBroker()) {
+        try (InMemoryMessageBroker broker =
+                     new InMemoryMessageBroker(new InMemoryConfig(100, 1))) {
             broker.subscribe(QUEUE_NAME, worker);
             broker.send(QUEUE_NAME, message);
 
@@ -107,6 +110,28 @@ class InMemoryMessageBrokerTest {
 
             verify(processor).process(message);
             assertEquals(0, worker.getProcessedMessagesCount());
+        }
+    }
+
+    @Test
+    void shouldFailWhenQueueRemainsFull() {
+        InMemoryConfig config = new InMemoryConfig(1, 1);
+        Duration testTimeout = Duration.ofSeconds(5);
+
+        PojoMessage message = new PojoMessage(
+                "anastasia",
+                "2000010100019",
+                10,
+                LocalDateTime.of(2026, Month.JANUARY, 15, 10, 30)
+        );
+
+        try (InMemoryMessageBroker broker = new InMemoryMessageBroker(config)) {
+            broker.send(QUEUE_NAME, message);
+
+            IllegalStateException exception = assertTimeoutPreemptively(testTimeout,
+                    () -> assertThrows(IllegalStateException.class, () -> broker.send(QUEUE_NAME, message)));
+
+            assertEquals("Timed out waiting for space in queue: " + QUEUE_NAME, exception.getMessage());
         }
     }
 }
