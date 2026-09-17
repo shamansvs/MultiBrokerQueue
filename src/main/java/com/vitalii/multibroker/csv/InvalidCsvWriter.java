@@ -1,5 +1,7 @@
 package com.vitalii.multibroker.csv;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vitalii.multibroker.model.PojoMessage;
 import jakarta.validation.ConstraintViolation;
 import org.slf4j.Logger;
@@ -12,12 +14,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public final class InvalidCsvWriter implements AutoCloseable {
     private static final String HEADER = "name,count,errors";
-
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final Logger LOGGER = LoggerFactory.getLogger(InvalidCsvWriter.class);
     private final BufferedWriter writer;
     private long writtenMessagesCount;
@@ -25,13 +28,8 @@ public final class InvalidCsvWriter implements AutoCloseable {
 
     public InvalidCsvWriter(Path filePath) {
         try {
-            writer = Files.newBufferedWriter(
-                    filePath,
-                    StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.TRUNCATE_EXISTING,
-                    StandardOpenOption.WRITE);
-
+            writer = Files.newBufferedWriter(filePath, StandardCharsets.UTF_8, StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
             writer.write(HEADER);
             writer.newLine();
         } catch (IOException e) {
@@ -54,16 +52,18 @@ public final class InvalidCsvWriter implements AutoCloseable {
         }
     }
 
-    private String errorsToCsvJson(Set<ConstraintViolation<PojoMessage>> violations) {
-        String errorsJson = violations.stream()
+    private String errorsToCsvJson(Set<ConstraintViolation<PojoMessage>> violations
+    ) {
+        List<String> errors = violations.stream()
                 .map(ConstraintViolation::getMessage)
-                .map(error -> "\"" + error + "\"")
-                .collect(Collectors.joining(
-                        ",",
-                        "{\"errors\":[",
-                        "]}"
-                ));
-        return "\"" + errorsJson.replace("\"", "\"\"") + "\"";
+                .toList();
+
+        try {
+            String errorsJson = OBJECT_MAPPER.writeValueAsString(Map.of("errors", errors));
+            return "\"" + errorsJson.replace("\"", "\"\"") + "\"";
+        } catch (JsonProcessingException e) {
+            throw new UncheckedIOException("Failed to serialize validation errors", e);
+        }
     }
 
     @Override
@@ -72,8 +72,7 @@ public final class InvalidCsvWriter implements AutoCloseable {
             writer.close();
             long messagesPerSecond = Math.round(writtenMessagesCount * 1_000_000_000.0
                     / Math.max(1, writingDurationNanos));
-            LOGGER.info("Invalid CSV writer wrote {} messages ({} msg/s)",
-                    writtenMessagesCount, messagesPerSecond);
+            LOGGER.info("Invalid CSV writer wrote {} messages ({} msg/s)", writtenMessagesCount, messagesPerSecond);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to close invalid CSV file", e);
         }
