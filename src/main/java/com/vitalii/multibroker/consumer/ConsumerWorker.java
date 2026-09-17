@@ -18,21 +18,23 @@ public final class ConsumerWorker implements QueueMessageHandler {
     private long processedMessagesCount;
 
     public ConsumerWorker(MessageProcessor processor) {
-        this.processor = processor;
+        this.processor = Objects.requireNonNull(processor, "processor must not be null");
     }
 
     @Override
     public boolean handle(QueueMessage message) {
-        if (message == PoisonPill.STOP) {
-            completionLatch.countDown();
-            return false;
-        }
+        return switch (message) {
+            case PoisonPill.STOP -> {
+                completionLatch.countDown();
+                yield false;
+            }
 
-        PojoMessage pojoMessage = (PojoMessage) message;
-        processor.process(pojoMessage);
-        processedMessagesCount++;
-
-        return true;
+            case PojoMessage pojoMessage -> {
+                processor.process(pojoMessage);
+                processedMessagesCount++;
+                yield true;
+            }
+        };
     }
 
     @Override
