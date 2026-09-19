@@ -5,8 +5,6 @@ import com.vitalii.multibroker.broker.inmemory.InMemoryConfig;
 import com.vitalii.multibroker.broker.kafka.KafkaConfig;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConfig;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.Properties;
 
@@ -36,21 +34,11 @@ public record AppConfig(
     }
 
     public static AppConfig load() {
-        try (InputStream inputStream = AppConfig.class
-                .getClassLoader()
-                .getResourceAsStream("application.properties")) {
+        return fromProperties(PropertiesLoader.loadFromResources("application.properties"));
+    }
 
-            if (inputStream == null) {
-                throw new IllegalStateException("application.properties not found");
-            }
-
-            Properties properties = new Properties();
-            properties.load(inputStream);
-
-            return fromProperties(properties);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to load application.properties", e);
-        }
+    public static AppConfig load(Path configPath) {
+        return fromProperties(PropertiesLoader.loadFromFile(configPath));
     }
 
     static AppConfig fromProperties(Properties properties) {

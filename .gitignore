@@ -16,6 +16,7 @@ build/
 *.log
 out/
 *.csv
+/application.properties
 
 ### Eclipse ###
 .apt_generated
