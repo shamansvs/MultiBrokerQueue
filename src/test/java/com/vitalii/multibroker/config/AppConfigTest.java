@@ -6,10 +6,15 @@ import com.vitalii.multibroker.broker.kafka.KafkaConfig;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.io.IOException;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
 
@@ -17,6 +22,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class AppConfigTest {
     private Properties properties;
+    @TempDir
+    Path tempDirectory;
 
     @BeforeEach
     void setUp() {
@@ -97,5 +104,28 @@ class AppConfigTest {
                 IllegalArgumentException.class, () -> AppConfig.fromProperties(properties));
 
         assertEquals(propertyName + " must be greater than zero", exception.getMessage());
+    }
+
+    @Test
+    void shouldLoadConfigFromExternalFile() throws IOException {
+        Path configPath = tempDirectory.resolve("application.properties");
+        properties.setProperty("messages.count", "123");
+        try (Writer writer = Files.newBufferedWriter(configPath, StandardCharsets.UTF_8)) {
+            properties.store(writer, null);
+        }
+
+        AppConfig expected = AppConfig.fromProperties(properties);
+        AppConfig actual = AppConfig.load(configPath);
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    void shouldFailWhenExternalConfigDoesNotExist() {
+        Path configPath = tempDirectory.resolve("missing.properties");
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> AppConfig.load(configPath));
+
+        assertEquals("Cannot load properties from file: " + configPath.toAbsolutePath(),
+                exception.getMessage());
+        assertInstanceOf(IOException.class, exception.getCause());
     }
 }
