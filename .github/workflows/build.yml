@@ -1,4 +1,4 @@
-name: Build and test
+name: Build and publish
 
 on:
   pull_request:
@@ -48,3 +48,55 @@ jobs:
           path: target/MultiBrokerQueue-*.jar
           if-no-files-found: error
           retention-days: 7
+
+  upload-to-s3:
+    name: Upload JAR to S3
+    needs: build
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Download executable JAR
+        uses: actions/download-artifact@v8
+        with:
+          name: multibroker-jar
+          path: artifact
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: GitHubActions-${{ github.run_id }}
+
+      - name: Upload JAR to S3
+        shell: bash
+        env:
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+        run: |
+          set -euo pipefail
+          : "${S3_BUCKET:?S3_BUCKET variable is required}"
+
+          shopt -s nullglob
+          jars=(artifact/MultiBrokerQueue-*.jar)
+
+          if [ "${#jars[@]}" -ne 1 ]; then
+            echo "Expected exactly one executable JAR"
+            exit 1
+          fi
+
+          s3_key="artifacts/${GITHUB_SHA}/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/application.jar"
+
+          aws s3 cp "${jars[0]}" \
+            "s3://${S3_BUCKET}/${s3_key}" \
+            --only-show-errors
+
+          echo "Uploaded to s3://${S3_BUCKET}/${s3_key}"
