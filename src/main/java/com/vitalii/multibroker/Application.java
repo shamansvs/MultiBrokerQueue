@@ -17,21 +17,27 @@ import org.hibernate.validator.messageinterpolation.ParameterMessageInterpolator
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 public class Application {
     private static final Logger LOGGER = LoggerFactory.getLogger(Application.class);
 
     public static void main(String[] args) {
-        AppConfig config = AppConfig.load();
+        if (args.length > 1) {
+            throw new IllegalArgumentException("Usage: java -jar <jar-file> [config-path]");
+        }
+        AppConfig config = args.length == 0 ? AppConfig.load() : AppConfig.load(Path.of(args[0]));
 
-        try (MessageBroker broker = MessageBrokerFactory.create(config);
-             ValidatorFactory factory = Validation.byDefaultProvider()
-                     .configure()
-                     .messageInterpolator(new ParameterMessageInterpolator())
-                     .buildValidatorFactory();
+        try (ValidatorFactory factory = Validation.byDefaultProvider()
+                .configure()
+                .messageInterpolator(new ParameterMessageInterpolator())
+                .buildValidatorFactory();
              ValidCsvWriter validWriter = new ValidCsvWriter(config.validCsvPath());
-             InvalidCsvWriter invalidWriter = new InvalidCsvWriter(config.invalidCsvPath())) {
+             InvalidCsvWriter invalidWriter = new InvalidCsvWriter(config.invalidCsvPath());
+             MessageBroker broker = MessageBrokerFactory.create(config)) {
+
 
             MessageValidator validator = new MessageValidator(factory.getValidator());
             MessageProcessor processor = new MessageProcessor(validator, validWriter, invalidWriter);
@@ -47,7 +53,7 @@ public class Application {
 
             consumerRunner.start();
             producerRunner.run();
-            consumerRunner.awaitCompletion();
+            consumerRunner.awaitCompletion(Duration.ofSeconds(config.consumersCompletionTimeoutSeconds()));
 
             long totalMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - totalStart);
             LOGGER.info("Total time: {} ms", totalMillis);

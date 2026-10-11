@@ -35,24 +35,19 @@ class ConsumerWorkerTest {
     void shouldStopAfterPoisonPill() {
         MessageProcessor processor = mock(MessageProcessor.class);
         ConsumerWorker worker = new ConsumerWorker(processor);
-
         boolean shouldContinue = worker.handle(PoisonPill.STOP);
 
         assertFalse(shouldContinue);
         assertEquals(0, worker.getProcessedMessagesCount());
         verifyNoInteractions(processor);
 
-        assertTimeout(
-                Duration.ofSeconds(1),
-                worker::awaitCompletion
-        );
+        assertTimeoutPreemptively(Duration.ofSeconds(1), worker::awaitCompletion);
     }
 
     @Test
     void shouldReportProcessingFailureWithoutWaitingForPoisonPill() {
         MessageProcessor processor = mock(MessageProcessor.class);
         ConsumerWorker worker = new ConsumerWorker(processor);
-
         RuntimeException cause = new IllegalStateException("CSV writing failed");
 
         worker.onError(cause);
@@ -64,6 +59,24 @@ class ConsumerWorkerTest {
             );
 
             assertSame(cause, exception.getCause());
+        });
+
+        verifyNoInteractions(processor);
+    }
+
+    @Test
+    void shouldKeepFirstReportedFailure() {
+        MessageProcessor processor = mock(MessageProcessor.class);
+        ConsumerWorker worker = new ConsumerWorker(processor);
+        RuntimeException firstError = new IllegalStateException("CSV writing failed");
+        RuntimeException secondError = new IllegalStateException("Connection closed");
+
+        worker.onError(firstError);
+        worker.onError(secondError);
+
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> {
+            IllegalStateException exception = assertThrows(IllegalStateException.class, worker::awaitCompletion);
+            assertSame(firstError, exception.getCause());
         });
 
         verifyNoInteractions(processor);

@@ -16,6 +16,7 @@ build/
 *.log
 out/
 *.csv
+/application.properties
 
 ### Eclipse ###
 .apt_generated
@@ -32,7 +33,6 @@ out/
 /dist/
 /nbdist/
 /.nb-gradle/
-build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 

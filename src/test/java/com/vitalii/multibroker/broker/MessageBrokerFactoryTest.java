@@ -1,7 +1,9 @@
 package com.vitalii.multibroker.broker;
 
 import com.vitalii.multibroker.broker.activemq.ActiveMqConfig;
+import com.vitalii.multibroker.broker.inmemory.InMemoryConfig;
 import com.vitalii.multibroker.broker.inmemory.InMemoryMessageBroker;
+import com.vitalii.multibroker.broker.kafka.KafkaConfig;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConfig;
 import com.vitalii.multibroker.config.AppConfig;
 import org.junit.jupiter.api.Test;
@@ -37,7 +39,6 @@ class MessageBrokerFactoryTest {
                 brokerType,
                 "test-queue",
                 1,
-                1,
                 100,
                 Path.of("valid.csv"),
                 Path.of("invalid.csv"),
@@ -50,8 +51,13 @@ class MessageBrokerFactoryTest {
                         "localhost",
                         61616,
                         "artemis",
-                        "artemis"
-                )
+                        "artemis"),
+                new KafkaConfig(
+                        "localhost:9092",
+                        "test-consumers",
+                        1),
+                60,
+                new InMemoryConfig(100, 1)
         );
     }
 }

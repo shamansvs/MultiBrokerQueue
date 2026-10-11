@@ -6,45 +6,50 @@ import com.vitalii.multibroker.model.PojoMessage;
 import com.vitalii.multibroker.model.QueueMessage;
 import com.vitalii.multibroker.processing.MessageProcessor;
 
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class ConsumerWorker implements QueueMessageHandler {
     private final MessageProcessor processor;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
-    private volatile Throwable processingError;
+    private final AtomicReference<Throwable> processingError = new AtomicReference<>();
 
     private long processedMessagesCount;
 
     public ConsumerWorker(MessageProcessor processor) {
-        this.processor = processor;
+        this.processor = Objects.requireNonNull(processor, "processor must not be null");
     }
 
     @Override
     public boolean handle(QueueMessage message) {
-        if (message == PoisonPill.STOP) {
-            completionLatch.countDown();
-            return false;
-        }
+        return switch (message) {
+            case PoisonPill.STOP -> {
+                completionLatch.countDown();
+                yield false;
+            }
 
-        PojoMessage pojoMessage = (PojoMessage) message;
-
-        processor.process(pojoMessage);
-        processedMessagesCount++;
-
-        return true;
+            case PojoMessage pojoMessage -> {
+                processor.process(pojoMessage);
+                processedMessagesCount++;
+                yield true;
+            }
+        };
     }
 
     @Override
     public void onError(Throwable error) {
-        processingError = error;
+        Objects.requireNonNull(error, "error must not be null");
+        processingError.compareAndSet(null, error);
         completionLatch.countDown();
     }
 
     public void awaitCompletion() throws InterruptedException {
         completionLatch.await();
+        Throwable error = processingError.get();
 
-        if (processingError != null) {
-            throw new IllegalStateException("Consumer processing failed", processingError);
+        if (error != null) {
+            throw new IllegalStateException("Consumer processing failed", error);
         }
     }
 

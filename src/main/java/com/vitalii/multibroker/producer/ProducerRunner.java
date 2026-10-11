@@ -27,17 +27,15 @@ public final class ProducerRunner {
 
     public void run() {
         long start = System.nanoTime();
+        producer.generateAndSend(messagesCount);
+        sendPoisonPills();
 
-        try {
-            producer.generateAndSend(messagesCount);
-        } finally {
-            sendPoisonPills();
-            long durationNanos = System.nanoTime() - start;
-            long durationMillis = TimeUnit.NANOSECONDS.toMillis(durationNanos);
-            long messagesPerSecond = Math.round(messagesCount * 1_000_000_000.0 / Math.max(1, durationNanos));
-            LOGGER.info("Producer sent {} messages in {} ms ({} msg/s)",
-                    messagesCount, durationMillis, messagesPerSecond);
-        }
+        long durationNanos = System.nanoTime() - start;
+        long durationMillis = TimeUnit.NANOSECONDS.toMillis(durationNanos);
+
+        long messagesPerSecond = Math.round(messagesCount * 1_000_000_000.0 / Math.max(1, durationNanos));
+        LOGGER.info("Producer sent {} messages in {} ms ({} msg/s)",
+                messagesCount, durationMillis, messagesPerSecond);
     }
 
     private void sendPoisonPills() {
