@@ -8,6 +8,9 @@ import com.vitalii.multibroker.broker.kafka.KafkaConfig;
 import com.vitalii.multibroker.broker.kafka.KafkaTopicManager;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqBroker;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConnectionProvider;
+import com.vitalii.multibroker.broker.sqs.SqsBroker;
+import com.vitalii.multibroker.broker.sqs.SqsClientProvider;
+import com.vitalii.multibroker.broker.sqs.SqsConfig;
 import com.vitalii.multibroker.config.AppConfig;
 import com.vitalii.multibroker.serialization.JsonQueueMessageSerializer;
 import com.vitalii.multibroker.serialization.QueueMessageSerializer;
@@ -23,23 +26,20 @@ public final class MessageBrokerFactory {
 
         return switch (brokerType) {
             case "inmemory" -> new InMemoryMessageBroker(config.inMemoryConfig());
-
             case "rabbitmq" -> {
                 RabbitMqConnectionProvider connectionProvider = new RabbitMqConnectionProvider(config.rabbitMqConfig());
                 QueueMessageSerializer serializer = new JsonQueueMessageSerializer();
 
                 yield new RabbitMqBroker(connectionProvider, serializer);
             }
-
             case "activemq" -> {
                 ActiveMqConnectionProvider connectionProvider = new ActiveMqConnectionProvider(config.activeMqConfig());
                 QueueMessageSerializer serializer = new JsonQueueMessageSerializer();
 
                 yield new ActiveMqBroker(connectionProvider, serializer);
             }
-
             case "kafka" -> createKafkaBroker(config);
-
+            case "sqs" -> createSqsBroker(config);
             default -> throw new IllegalArgumentException("Unsupported broker type: " + config.brokerType());
         };
     }
@@ -55,5 +55,31 @@ public final class MessageBrokerFactory {
         topicManager.ensureTopic(config.queueName());
 
         return new KafkaBroker(kafkaConfig, new JsonQueueMessageSerializer());
+    }
+
+    private static MessageBroker createSqsBroker(AppConfig config) {
+        if (config.consumersCount() != 1) {
+            throw new IllegalArgumentException("SQS broker currently supports exactly one consumer");
+        }
+
+        SqsConfig sqsConfig = config.sqsConfig();
+        if (sqsConfig == null
+                || sqsConfig.region() == null
+                || sqsConfig.region().isBlank()
+                || sqsConfig.queueUrl() == null
+                || sqsConfig.queueUrl().isBlank()
+                || sqsConfig.messageGroupId() == null
+                || sqsConfig.messageGroupId().isBlank()) {
+            throw new IllegalArgumentException("SQS region, queue URL and message group ID must be configured");
+        }
+
+        if (!sqsConfig.queueUrl().endsWith(".fifo")) {
+            throw new IllegalArgumentException("SQS broker requires a FIFO queue URL");
+        }
+
+        QueueMessageSerializer serializer = new JsonQueueMessageSerializer();
+        SqsClientProvider clientProvider = new SqsClientProvider(sqsConfig);
+
+        return new SqsBroker(clientProvider.createClient(), sqsConfig, serializer);
     }
 }
