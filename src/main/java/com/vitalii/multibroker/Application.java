@@ -38,7 +38,6 @@ public class Application {
              InvalidCsvWriter invalidWriter = new InvalidCsvWriter(config.invalidCsvPath());
              MessageBroker broker = MessageBrokerFactory.create(config)) {
 
-
             MessageValidator validator = new MessageValidator(factory.getValidator());
             MessageProcessor processor = new MessageProcessor(validator, validWriter, invalidWriter);
             MessageGenerator generator = new MessageGenerator();
@@ -48,7 +47,7 @@ public class Application {
 
             ConsumerRunner consumerRunner = new ConsumerRunner(broker, processor,
                     config.queueName(), config.consumersCount());
-
+            LOGGER.info("Using broker: {}", broker.getClass().getSimpleName());
             long totalStart = System.nanoTime();
 
             consumerRunner.start();
