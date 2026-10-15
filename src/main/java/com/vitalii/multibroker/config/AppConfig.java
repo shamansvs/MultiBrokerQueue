@@ -4,6 +4,7 @@ import com.vitalii.multibroker.broker.activemq.ActiveMqConfig;
 import com.vitalii.multibroker.broker.inmemory.InMemoryConfig;
 import com.vitalii.multibroker.broker.kafka.KafkaConfig;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConfig;
+import com.vitalii.multibroker.broker.sqs.SqsConfig;
 
 import java.nio.file.Path;
 import java.util.Properties;
@@ -19,7 +20,8 @@ public record AppConfig(
         ActiveMqConfig activeMqConfig,
         KafkaConfig kafkaConfig,
         int consumersCompletionTimeoutSeconds,
-        InMemoryConfig inMemoryConfig
+        InMemoryConfig inMemoryConfig,
+        SqsConfig sqsConfig
 ) {
     public AppConfig {
         if (consumersCount < 1) {
@@ -66,7 +68,11 @@ public record AppConfig(
                 Integer.parseInt(properties.getProperty("consumers.completion.timeout.seconds")),
                 new InMemoryConfig(
                         Integer.parseInt(properties.getProperty("inmemory.queue.capacity")),
-                        Integer.parseInt(properties.getProperty("inmemory.send.timeout.seconds")))
+                        Integer.parseInt(properties.getProperty("inmemory.send.timeout.seconds"))),
+                new SqsConfig(
+                        properties.getProperty("sqs.region"),
+                        properties.getProperty("sqs.queue.url"),
+                        properties.getProperty("sqs.message.group.id"))
         );
     }
 }

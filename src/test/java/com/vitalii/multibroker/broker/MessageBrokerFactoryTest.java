@@ -5,6 +5,7 @@ import com.vitalii.multibroker.broker.inmemory.InMemoryConfig;
 import com.vitalii.multibroker.broker.inmemory.InMemoryMessageBroker;
 import com.vitalii.multibroker.broker.kafka.KafkaConfig;
 import com.vitalii.multibroker.broker.rabbitmq.RabbitMqConfig;
+import com.vitalii.multibroker.broker.sqs.SqsConfig;
 import com.vitalii.multibroker.config.AppConfig;
 import org.junit.jupiter.api.Test;
 
@@ -57,7 +58,11 @@ class MessageBrokerFactoryTest {
                         "test-consumers",
                         1),
                 60,
-                new InMemoryConfig(100, 1)
+                new InMemoryConfig(100, 1),
+                new SqsConfig(
+                        "eu-central-1",
+                        "https://sqs.eu-central-1.amazonaws.com/123456789012/test-messages.fifo",
+                        "test-group")
         );
     }
 }
