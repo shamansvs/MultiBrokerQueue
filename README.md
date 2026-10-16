@@ -233,3 +233,13 @@ This is a learning project, not a production-ready messaging platform.
 - Exactly-once durable CSV output is not guaranteed.
 - Throughput logs are diagnostic measurements, not a controlled benchmark.
   Different broker durability and acknowledgement settings affect comparisons.
+
+### Demo screenshots
+
+Successful deployment and application execution:
+
+![Successful AWS deployment](docs/images/aws-pipeline-success.png)
+
+SQS message metrics from the demonstration runs:
+
+![SQS message metrics](docs/images/sqs-metrics.png)
