@@ -52,10 +52,7 @@ jobs:
   upload-to-s3:
     name: Upload JAR to S3
     needs: build
-    if: >-
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'push' ||
-       github.event_name == 'workflow_dispatch')
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
